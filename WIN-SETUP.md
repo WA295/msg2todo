@@ -66,7 +66,7 @@
 
 - 别人私聊朋友发「明天下午3点提醒我交作业」→ 自动生成待办
 - 群里要 @朋友 才会处理(改 `QQ_PROCESS_ALL_GROUP=true` 可处理全部)
-- 想静默不回复对方:`REPLY_CONFIRM=false`
+- 默认**不回复**对方(静默记录);想收到确认回复改 `REPLY_CONFIRM=true`
 
 ## 常见问题
 

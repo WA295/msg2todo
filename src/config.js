@@ -51,7 +51,7 @@ export const config = {
       .split(/[,，]/)
       .map((s) => s.trim())
       .filter(Boolean),
-    replyConfirm: bool(process.env.REPLY_CONFIRM, true),
+    replyConfirm: bool(process.env.REPLY_CONFIRM, false),
   },
 
   // Bark iOS 推送(如 https://api.day.app/你的密钥;留空则不推送)
