@@ -96,7 +96,10 @@ function onPayload(ws, state, data) {
   const senderName = data.sender?.card || data.sender?.nickname || senderId;
   const chatName = isGroup ? `群:${data.group_id}` : senderName;
 
-  if (isGroup && !config.onebot.processAllGroup && !mentioned) return;
+  if (isGroup) {
+    const inWhitelist = config.onebot.groupWhitelist.includes(String(data.group_id));
+    if (!config.onebot.processAllGroup && !inWhitelist && !mentioned) return;
+  }
 
   handleIncoming({
     platform: 'qq',

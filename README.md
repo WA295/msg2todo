@@ -113,7 +113,8 @@ node -e "const fs=require('fs');const p=process.env.HOME+'/Applications/QQ-napca
 ### 行为规则
 
 - **私聊**:所有消息交给 LLM 判断是否含待办
-- **群聊**:默认只处理 **@机器人** 的消息(`QQ_PROCESS_ALL_GROUP=true` 处理全部)
+- **群聊**:默认只处理 **@机器人** 的消息;`QQ_PROCESS_ALL_GROUP=true` 处理全部群消息
+- **群白名单**:`QQ_GROUP_WHITELIST=群号1,群号2` —— 白名单内的群**所有消息都处理**(不受 @ 限制),适合班级群、工作群
 - **静默**:默认不回复发送者;`REPLY_CONFIRM=true` 开启确认回复
 
 ## 微信接入(已停用,附说明)
@@ -157,6 +158,7 @@ node -e "const fs=require('fs');const p=process.env.HOME+'/Applications/QQ-napca
 | `ONE_BOT_WS_HOST` / `ONE_BOT_WS_PORT` | `0.0.0.0` / `3001` | OneBot 反向 WS |
 | `ONE_BOT_ACCESS_TOKEN` | 空 | 接入令牌(可选) |
 | `QQ_PROCESS_ALL_GROUP` | `false` | 是否处理 QQ 群全部消息 |
+| `QQ_GROUP_WHITELIST` | 空 | 群白名单(逗号分隔群号):白名单内的群所有消息都处理,不受 @ 限制 |
 | `WECHAT_ENABLED` | `true` | 是否启用微信(建议 false) |
 | `TODO_KEYWORDS` | 空 | 关键词预过滤,如 `提醒,记得,待办` |
 | `REPLY_CONFIRM` | `false` | 是否回复发送者确认 |

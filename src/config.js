@@ -37,6 +37,11 @@ export const config = {
     port: Number(process.env.ONE_BOT_WS_PORT || 3001),
     token: process.env.ONE_BOT_ACCESS_TOKEN || '',
     processAllGroup: bool(process.env.QQ_PROCESS_ALL_GROUP, false),
+    // 群白名单:这些群的所有消息都处理(不受 @ 限制);留空则所有群都只处理 @机器人 的消息
+    groupWhitelist: (process.env.QQ_GROUP_WHITELIST || '')
+      .split(/[,，\s]+/)
+      .map((s) => s.trim())
+      .filter(Boolean),
   },
 
   wechat: {
