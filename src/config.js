@@ -59,6 +59,9 @@ export const config = {
 
   // PushDeer 安卓推送(pushkey,留空则不推送)
   pushDeerKey: process.env.PUSHDEER_KEY || '',
+
+  // 到期前提前提醒(分钟);0 = 不提前提醒,只到点提醒
+  advanceMinutes: Number(process.env.REMIND_ADVANCE_MINUTES || 60),
 };
 
 /** 当前时间(带星期与 UTC 偏移),用于喂给 LLM 作为参考 */

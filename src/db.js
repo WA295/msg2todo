@@ -39,10 +39,13 @@ const insTodo = db.prepare(`
 `);
 const getTodoStmt = db.prepare('SELECT * FROM todos WHERE id = ?');
 
-// 迁移:notified_at 用于到期推送去重
+// 迁移:notified_at 用于到期推送去重,notified_adv_at 用于提前提醒去重
 const todoCols = db.prepare('PRAGMA table_info(todos)').all().map((c) => c.name);
 if (!todoCols.includes('notified_at')) {
   db.exec('ALTER TABLE todos ADD COLUMN notified_at TEXT');
+}
+if (!todoCols.includes('notified_adv_at')) {
+  db.exec('ALTER TABLE todos ADD COLUMN notified_adv_at TEXT');
 }
 
 export function addTodo({ title, dueAt = null, priority = 'medium', notes = '', source = 'manual', chatName = '', senderName = '' }) {

@@ -48,7 +48,7 @@
 | 🧠 | **智能提取** | 本地大模型(如 Qwen2.5-3B,GPU 推理)或任意 OpenAI 兼容 API;无 LLM 时自动降级为内置中文规则(支持「明天/周五/下午3点/3小时后」等表达) |
 | 🖥️ | **桌面软件** | Electron 窗口内嵌看板、系统托盘、开机自启;也支持纯命令行模式 |
 | 📱 | **手机看板** | PWA,浏览器「添加到主屏幕」即用 |
-| 🔔 | **手机推送** | 新待办、到期提醒实时推送到手机(Bark for iOS / PushDeer for Android) |
+| 🔔 | **手机推送** | 新待办、**到期前 1 小时提前提醒**、到期提醒,实时推送到手机(Bark for iOS / PushDeer for Android) |
 | 🤫 | **默认静默** | 生成待办不打扰发消息的人(可配置开启确认回复) |
 | 🔒 | **隐私** | 数据全部本地存储;大模型可跑在本地显卡,消息不出本机 |
 
@@ -161,6 +161,7 @@ node -e "const fs=require('fs');const p=process.env.HOME+'/Applications/QQ-napca
 | `REPLY_CONFIRM` | `false` | 是否回复发送者确认 |
 | `BARK_URL` | 空 | Bark(iOS)推送地址 |
 | `PUSHDEER_KEY` | 空 | PushDeer(Android)pushkey |
+| `REMIND_ADVANCE_MINUTES` | `60` | 到期前提前提醒(分钟);`0` = 只到点提醒 |
 | `DB_PATH` | `data/todos.db` | SQLite 路径 |
 
 ## 使用示例
