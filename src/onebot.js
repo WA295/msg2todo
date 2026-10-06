@@ -33,6 +33,7 @@ export function startOneBot() {
     }
 
     console.log('[QQ] 机器人已连接');
+    botConnections++;
     setStatus({ qq: 'on' });
     const state = { selfId: null, echoSeq: 0 };
     // 主动查询登录信息(不依赖客户端上报 lifecycle 事件,重连时客户端可能不再发送)
@@ -46,8 +47,12 @@ export function startOneBot() {
       }
     });
     ws.on('close', () => {
-      console.log('[QQ] 机器人已断开');
-      setStatus({ qq: 'off' });
+      botConnections--;
+      if (botConnections <= 0) {
+        botConnections = 0;
+        console.log('[QQ] 机器人已断开');
+        setStatus({ qq: 'off' });
+      }
     });
     ws.on('error', (e) => console.warn('[QQ] 连接错误:', e.message));
   });
@@ -56,6 +61,7 @@ export function startOneBot() {
 }
 
 const seenMessageIds = new Map(); // 消息去重(部分插件会重复上报)
+let botConnections = 0; // 当前连接的机器人数量(状态显示用)
 
 function isDuplicate(messageId) {
   if (!messageId) return false;
