@@ -1,0 +1,8 @@
+node_modules/
+data/
+.env
+*.log
+dist/
+*.AppImage
+*.zip
+*.memory-card.json

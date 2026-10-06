@@ -1,0 +1,93 @@
+{
+  "name": "msg2todo",
+  "version": "1.0.0",
+  "description": "实时接收微信/QQ消息,用 LLM 提取并生成待办,附本地 Web 看板",
+  "type": "module",
+  "main": "desktop/main.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "desktop": "electron desktop/main.js",
+    "simulate": "node scripts/simulate-onebot.js",
+    "mock-llm": "node scripts/mock-llm.js",
+    "gen-icon": "node scripts/gen-icon.js",
+    "postinstall": "patch-package && electron-builder install-app-deps",
+    "rebuild-native": "electron-rebuild -f -w leveldown",
+    "dist:linux": "electron-builder --linux AppImage"
+  },
+  "engines": {
+    "node": ">=22.5"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "qrcode": "^1.5.4",
+    "qrcode-terminal": "^0.12.0",
+    "wechaty": "^1.20.2",
+    "wechaty-puppet-wechat4u": "^1.14.14",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "electron": "44.5.1",
+    "electron-builder": "26.17.0",
+    "electron-rebuild": "^3.2.9",
+    "patch-package": "^8.0.1"
+  },
+  "build": {
+    "appId": "com.robot.msg2todo",
+    "productName": "msg2todo",
+    "asar": false,
+    "npmRebuild": true,
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "public/**/*",
+      "desktop/**/*",
+      "build/**/*",
+      "package.json",
+      ".env.example"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "signAndEditExecutable": false,
+      "files": [
+        "src/**/*",
+        "public/**/*",
+        "desktop/**/*",
+        "build/**/*",
+        "package.json",
+        ".env.example",
+        "!node_modules/wechaty/**",
+        "!node_modules/wechaty-puppet-wechat4u/**",
+        "!node_modules/qrcode-terminal/**"
+      ]
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "category": "Utility",
+      "executableName": "msg2todo",
+      "desktop": {
+        "entry": {
+          "Name": "待办助手",
+          "Comment": "微信/QQ 消息自动生成待办",
+          "StartupWMClass": "msg2todo"
+        }
+      }
+    }
+  }
+}

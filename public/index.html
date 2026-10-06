@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>待办看板 · msg2todo</title>
+<meta name="theme-color" content="#4f6ef7">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="待办助手">
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #ffffff; --line: #e5e7eb;
+    --text: #1f2937; --muted: #6b7280;
+    --accent: #4f6ef7; --accent-soft: #eef1fe;
+    --high: #ef4444; --mid: #f59e0b; --low: #10b981;
+    --wx: #07c160; --qq: #12b7f5; --manual: #9ca3af;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+    background: var(--bg); color: var(--text); min-height: 100vh;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 24px 16px 80px; }
+  header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; gap: 12px; flex-wrap: wrap; }
+  header h1 { font-size: 22px; }
+  header h1 .dot { color: var(--accent); }
+  .head-right { display: flex; align-items: center; gap: 14px; }
+  .conns { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { padding: 3px 10px; border-radius: 999px; font-size: 12px; border: 1px solid var(--line); background: #fff; color: var(--muted); display: inline-flex; align-items: center; gap: 5px; }
+  .chip b { font-weight: 600; color: var(--text); }
+  .chip .light { width: 7px; height: 7px; border-radius: 50%; background: #c3c8d1; }
+  .chip.ok .light { background: #22c55e; }
+  .chip.warn .light { background: #f59e0b; }
+  .stats { font-size: 13px; color: var(--muted); }
+  .stats b { color: var(--accent); font-size: 15px; margin: 0 2px; }
+  .stats b.hot { color: var(--high); }
+  .mini-btn { border: 1px solid var(--line); background: #fff; padding: 5px 12px; border-radius: 8px; cursor: pointer; font-size: 12px; color: var(--text); }
+  .mini-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+
+  .toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .tabs { display: flex; gap: 4px; background: #eef0f3; padding: 3px; border-radius: 10px; }
+  .tab { border: none; background: transparent; padding: 6px 14px; border-radius: 8px; cursor: pointer; font-size: 13px; color: var(--muted); }
+  .tab.on { background: #fff; color: var(--text); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  .search { flex: 1; min-width: 160px; padding: 7px 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; outline: none; }
+  .search:focus { border-color: var(--accent); }
+
+  form.add { display: grid; grid-template-columns: 1fr 130px 110px 110px auto; gap: 8px; align-items: center; }
+  form.add input, form.add select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; outline: none; background: #fff; }
+  form.add input:focus, form.add select:focus { border-color: var(--accent); }
+  .btn { border: none; background: var(--accent); color: #fff; padding: 8px 18px; border-radius: 8px; cursor: pointer; font-size: 13px; white-space: nowrap; }
+  .btn:hover { opacity: .9; }
+
+  .list { list-style: none; }
+  .todo { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; margin-bottom: 10px; transition: opacity .15s; }
+  .todo.done { opacity: .55; }
+  .todo.done .t-title { text-decoration: line-through; }
+  input[type=checkbox] { width: 20px; height: 20px; margin-top: 2px; accent-color: var(--accent); cursor: pointer; flex-shrink: 0; }
+  .t-main { flex: 1; min-width: 0; }
+  .t-title { font-size: 15px; word-break: break-all; }
+  .t-meta { margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: 12px; color: var(--muted); }
+  .badge { padding: 2px 8px; border-radius: 999px; font-size: 11px; white-space: nowrap; }
+  .b-high { background: #fee2e2; color: var(--high); }
+  .b-mid { background: #fef3c7; color: var(--mid); }
+  .b-low { background: #d1fae5; color: var(--low); }
+  .b-wx { background: #e3f9ec; color: #0a7d43; }
+  .b-qq { background: #e0f4fd; color: #0b7eab; }
+  .b-manual { background: #f0f1f3; color: var(--muted); }
+  .due { font-weight: 600; }
+  .due.overdue { color: var(--high); }
+  .t-notes { margin-top: 6px; font-size: 12.5px; color: var(--muted); background: #f8f9fb; border-radius: 6px; padding: 6px 10px; word-break: break-all; }
+  .del { border: none; background: transparent; color: #c3c8d1; cursor: pointer; font-size: 16px; padding: 4px 6px; border-radius: 6px; flex-shrink: 0; }
+  .del:hover { color: var(--high); background: #fef2f2; }
+  .empty { text-align: center; color: var(--muted); padding: 48px 0; font-size: 14px; }
+  .live { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .live i { width: 8px; height: 8px; border-radius: 50%; background: #c3c8d1; display: inline-block; }
+  .live.on i { background: #22c55e; animation: pulse 2s infinite; }
+  @keyframes pulse { 50% { opacity: .4; } }
+
+  .modal { position: fixed; inset: 0; background: rgba(15,23,42,.45); backdrop-filter: blur(2px); display: flex; align-items: center; justify-content: center; z-index: 50; }
+  .modal-card { background: #fff; border-radius: 16px; padding: 26px 34px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,.25); }
+  .modal-card h3 { font-size: 17px; margin-bottom: 6px; }
+  .modal-card .sub { font-size: 12.5px; color: var(--muted); margin-bottom: 14px; }
+  .qr-box { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: inline-block; }
+  .qr-box img { display: block; width: 220px; height: 220px; }
+  .modal-card .btn { margin-top: 14px; }
+  .qr-hint { font-size: 13px; color: var(--accent); margin-top: 10px; }
+  @media (max-width: 720px) {
+    form.add { grid-template-columns: 1fr 1fr; }
+    form.add .btn { grid-column: span 2; }
+  }
+  @media (max-width: 640px) {
+    .wrap { padding: 12px 10px 70px; }
+    header { margin-bottom: 12px; }
+    header h1 { font-size: 18px; }
+    .head-right { width: 100%; justify-content: space-between; gap: 8px; }
+    .chip { padding: 2px 8px; font-size: 11px; }
+    .stats { font-size: 12px; }
+    .card { padding: 12px; margin-bottom: 10px; border-radius: 10px; }
+    .todo { padding: 12px; margin-bottom: 8px; border-radius: 10px; }
+    .t-title { font-size: 14.5px; }
+    .del { font-size: 20px; padding: 6px 10px; }
+    .modal-card { margin: 16px; padding: 22px 26px; }
+    .mini-btn { padding: 5px 10px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1><span class="dot">●</span> 待办看板</h1>
+    <div class="head-right">
+      <div class="conns" id="conns"></div>
+      <button class="mini-btn" id="wxBtn">微信登录</button>
+      <div class="stats" id="stats"></div>
+    </div>
+  </header>
+
+  <div class="card">
+    <div class="toolbar">
+      <div class="tabs">
+        <button class="tab on" data-f="open">未完成</button>
+        <button class="tab" data-f="done">已完成</button>
+        <button class="tab" data-f="all">全部</button>
+      </div>
+      <input class="search" id="search" placeholder="搜索标题 / 备注 / 来源…" />
+      <span class="live" id="live"><i></i><span id="liveText">已连接</span></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <form class="add" id="addForm">
+      <input id="fTitle" placeholder="手动添加待办…" required />
+      <input id="fDue" type="datetime-local" />
+      <select id="fPriority">
+        <option value="medium">中优先级</option>
+        <option value="high">高优先级</option>
+        <option value="low">低优先级</option>
+      </select>
+      <input id="fNotes" placeholder="备注(可选)" />
+      <button class="btn" type="submit">添加</button>
+    </form>
+  </div>
+
+  <ul class="list" id="list"></ul>
+  <div class="empty" id="empty" style="display:none">暂无待办 🎉</div>
+</div>
+
+<div class="modal" id="qrModal" style="display:none">
+  <div class="modal-card">
+    <h3>📱 微信扫码登录</h3>
+    <div class="sub">打开手机微信 → 扫一扫</div>
+    <div class="qr-box"><img id="qrImg" alt="微信登录二维码"></div>
+    <div class="qr-hint" id="qrHint">二维码加载中…</div>
+    <button class="btn" id="qrClose">关闭</button>
+  </div>
+</div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const PRIO = { high: ['高', 'b-high'], medium: ['中', 'b-mid'], low: ['低', 'b-low'] };
+const SRC = { wechat: ['微信', 'b-wx'], qq: ['QQ', 'b-qq'], manual: ['手动', 'b-manual'] };
+let filter = 'open';
+let q = '';
+
+async function load() {
+  const res = await fetch(`/api/todos?status=${filter}&q=${encodeURIComponent(q)}`);
+  const data = await res.json();
+  const s = data.stats;
+  $('#stats').innerHTML = `共 <b>${s.total}</b> 项 · 未完成 <b class="hot">${s.open}</b> 项`;
+  render(data.todos);
+}
+
+function fmtDue(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return null;
+  const hm = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  const same = (a, b) => a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+  const now = new Date(), tom = new Date(Date.now()+86400000);
+  if (same(d, now)) return { label: `今天 ${hm}`, overdue: d < now };
+  if (same(d, tom)) return { label: `明天 ${hm}`, overdue: false };
+  const base = `${d.getMonth()+1}月${d.getDate()}日 ${hm}`;
+  return { label: d.getFullYear() === now.getFullYear() ? base : `${d.getFullYear()}年${base}`, overdue: d < now };
+}
+
+function el(tag, cls, text) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text !== undefined) n.textContent = text;
+  return n;
+}
+
+function render(todos) {
+  const list = $('#list');
+  list.innerHTML = '';
+  $('#empty').style.display = todos.length ? 'none' : 'block';
+  const frag = document.createDocumentFragment();
+  for (const t of todos) {
+    const li = el('li', 'todo' + (t.status === 'done' ? ' done' : ''));
+    const cb = el('input');
+    cb.type = 'checkbox';
+    cb.checked = t.status === 'done';
+    cb.onchange = () => toggle(t.id);
+    const main = el('div', 't-main');
+    main.appendChild(el('div', 't-title', t.title));
+    const meta = el('div', 't-meta');
+    const [pn, pc] = PRIO[t.priority] || PRIO.medium;
+    meta.appendChild(el('span', `badge ${pc}`, pn + '优先级'));
+    const [sn, sc] = SRC[t.source] || ['其他', 'b-manual'];
+    meta.appendChild(el('span', `badge ${sc}`, sn));
+    if (t.due_at) {
+      const f = fmtDue(t.due_at);
+      if (f) meta.appendChild(el('span', `due${f.overdue && t.status==='open' ? ' overdue' : ''}`, '⏰ ' + f.label));
+    }
+    const from = [t.chat_name, t.sender_name].filter(Boolean).join(' · ');
+    if (from) meta.appendChild(el('span', null, '来自 ' + from));
+    main.appendChild(meta);
+    if (t.notes) main.appendChild(el('div', 't-notes', t.notes));
+    li.appendChild(cb);
+    li.appendChild(main);
+    const del = el('button', 'del', '✕');
+    del.title = '删除';
+    del.onclick = () => remove(t.id);
+    li.appendChild(del);
+    frag.appendChild(li);
+  }
+  list.appendChild(frag);
+}
+
+async function toggle(id) { await fetch(`/api/todos/${id}/toggle`, { method: 'POST' }); load(); }
+async function remove(id) {
+  if (!confirm('确定删除这条待办?')) return;
+  await fetch(`/api/todos/${id}`, { method: 'DELETE' });
+  load();
+}
+
+document.querySelectorAll('.tab').forEach((btn) => {
+  btn.onclick = () => {
+    document.querySelectorAll('.tab').forEach((b) => b.classList.remove('on'));
+    btn.classList.add('on');
+    filter = btn.dataset.f;
+    load();
+  };
+});
+let searchTimer;
+$('#search').oninput = (e) => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => { q = e.target.value.trim(); load(); }, 250);
+};
+$('#addForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const body = {
+    title: $('#fTitle').value.trim(),
+    dueLocal: $('#fDue').value,
+    priority: $('#fPriority').value,
+    notes: $('#fNotes').value.trim(),
+  };
+  await fetch('/api/todos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  $('#addForm').reset();
+  load();
+};
+
+// SSE 实时更新(浏览器断线自动重连),另加 30s 兜底轮询
+function connectSSE() {
+  const es = new EventSource('/api/events');
+  es.addEventListener('update', load);
+  es.addEventListener('status', (e) => renderStatus(JSON.parse(e.data)));
+  es.addEventListener('qr', (e) => {
+    const d = JSON.parse(e.data);
+    if (d.hasQr) showQr();
+    else if (!$('#qrModal').dataset.manual) hideQr();
+  });
+  es.onopen = () => { $('#live').classList.add('on'); $('#liveText').textContent = '实时连接中'; };
+  es.onerror = () => { $('#live').classList.remove('on'); $('#liveText').textContent = '重连中…'; };
+}
+
+function chip(key, label, ok) {
+  const c = el('span', 'chip' + (ok ? ' ok' : ''));
+  c.appendChild(el('span', 'light'));
+  c.appendChild(el('b', null, label));
+  return c;
+}
+
+function renderStatus(s) {
+  const box = $('#conns');
+  box.innerHTML = '';
+  if (!s.wechatEnabled) {
+    box.appendChild(chip('wechat', '微信 · 已停用', false));
+  } else if (s.wechat === 'on') {
+    box.appendChild(chip('wechat', `微信 · ${s.wechatName || '已登录'}`, true));
+    if (!$('#qrModal').dataset.manual) hideQr();
+  } else if (s.wechat === 'scanning') {
+    box.appendChild(chip('wechat', '微信 · 扫码中', false));
+  } else {
+    box.appendChild(chip('wechat', '微信 · 未连接', false));
+  }
+  box.appendChild(chip('qq', s.qq === 'on' ? 'QQ · 已连接' : 'QQ · 未连接', s.qq === 'on'));
+  box.appendChild(chip('llm', s.llm ? 'LLM · 已启用' : 'LLM · 规则模式', Boolean(s.llm)));
+  $('#wxBtn').style.display = s.wechatEnabled ? '' : 'none';
+}
+
+function showQr() {
+  $('#qrModal').style.display = 'flex';
+  $('#qrImg').src = `/api/qr.svg?t=${Date.now()}`;
+  $('#qrHint').textContent = '扫描成功后自动关闭';
+}
+function hideQr() {
+  $('#qrModal').style.display = 'none';
+  delete $('#qrModal').dataset.manual;
+}
+$('#qrClose').onclick = () => { hideQr(); };
+$('#wxBtn').onclick = () => {
+  $('#qrModal').dataset.manual = '1';
+  fetch('/api/status').then((r) => r.json()).then((s) => {
+    if (s.wechat === 'on') {
+      $('#qrModal').style.display = 'flex';
+      $('#qrImg').src = '';
+      $('#qrHint').textContent = '微信已登录 ✔';
+    } else {
+      showQr();
+    }
+  });
+};
+
+connectSSE();
+setInterval(load, 30000);
+fetch('/api/status').then((r) => r.json()).then(renderStatus);
+load();
+</script>
+</body>
+</html>

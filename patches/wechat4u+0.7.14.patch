@@ -1,0 +1,65 @@
+diff --git a/node_modules/wechat4u/lib/core.js b/node_modules/wechat4u/lib/core.js
+index 9d55761..f055de4 100644
+--- a/node_modules/wechat4u/lib/core.js
++++ b/node_modules/wechat4u/lib/core.js
+@@ -166,10 +166,40 @@ var WechatCore = function () {
+         return _this4.request({
+           method: 'GET',
+           url: _this4.rediUri,
+-          maxRedirects: 0,
++          // [msg2todo patch] 微信新流程:301 的 body 已为空,真正的 XML 在 Location 下一跳,
++          // 必须跟随重定向(原代码 maxRedirects:0 导致解析不到票据)
++          maxRedirects: 5,
+           headers: headers
+-        }).then(function (res) {}).catch(function (error) {
+-          if (error.response.status === 301) {
++        }).then(function (res) {
++          // [msg2todo patch] 微信新登录流程:webwxnewloginpage 直接返回 200 + XML(旧版是 301 跳转)
++          var parseLoginData = function (data) {
++            var pm = data.match(/<ret>(.*)<\/ret>/);
++            if (pm && pm[1] === '0') {
++              _this4.PROP.skey = data.match(/<skey>(.*)<\/skey>/)[1];
++              _this4.PROP.sid = data.match(/<wxsid>(.*)<\/wxsid>/)[1];
++              _this4.PROP.uin = data.match(/<wxuin>(.*)<\/wxuin>/)[1];
++              _this4.PROP.passTicket = data.match(/<pass_ticket>(.*)<\/pass_ticket>/)[1];
++              return true;
++            }
++            return false;
++          };
++          if (res && res.data && typeof res.data === 'string' && parseLoginData(res.data)) {
++            if (res.headers && res.headers['set-cookie']) {
++              res.headers['set-cookie'].forEach(function (item) {
++                if (/webwx.*?data.*?ticket/i.test(item)) {
++                  _this4.PROP.webwxDataTicket = item.match(/=(.*?);/)[1];
++                } else if (/wxuin/i.test(item)) {
++                  _this4.PROP.uin = item.match(/=(.*?);/)[1];
++                } else if (/wxsid/i.test(item)) {
++                  _this4.PROP.sid = item.match(/=(.*?);/)[1];
++                } else if (/pass_ticket/i.test(item)) {
++                  _this4.PROP.passTicket = item.match(/=(.*?);/)[1];
++                }
++              });
++            }
++          }
++        }).catch(function (error) {
++          if (error.response && error.response.status === 301) {
+             var data = error.response.data;
+             var pm = data.match(/<ret>(.*)<\/ret>/);
+             if (pm && pm[1] === '0') {
+diff --git a/node_modules/wechat4u/lib/util/request.js b/node_modules/wechat4u/lib/util/request.js
+index 7b17901..1a9aa40 100644
+--- a/node_modules/wechat4u/lib/util/request.js
++++ b/node_modules/wechat4u/lib/util/request.js
+@@ -31,6 +31,12 @@ function Request(defaults) {
+   defaults.httpAgent = false;
+   defaults.httpsAgent = false;
+ 
++  // [msg2todo patch] 微信新协议:所有请求都需携带 client-version 与 extspam 头,
++  // 否则 webwxinit 等接口返回 BaseResponse.Ret=1(参数错误)
++  defaults.headers['client-version'] = defaults.headers['client-version'] || '2.0.0';
++  defaults.headers['extspam'] = defaults.headers['extspam'] || 'Go8FCIkFEokFCggwMDAwMDAwMRAGGvAESySibk50w5Wb3uTl2c2h64jVVrV7gNs06GFlWplHQbY/5FfiO++1yH4ykCyNPWKXmco+wfQzK5R98D3so7rJ5LmGFvBLjGceleySrc3SOf2Pc1gVehzJgODeS0lDL3/I/0S2SSE98YgKleq6Uqx6ndTy9yaL9qFxJL7eiA/R3SEfTaW1SBoSITIu+EEkXff+Pv8NHOk7N57rcGk1w0ZzRrQDkXTOXFN2iHYIzAAZPIOY45Lsh+A4slpgnDiaOvRtlQYCt97nmPLuTipOJ8Qc5pM7ZsOsAPPrCQL7nK0I7aPrFDF0q4ziUUKettzW8MrAaiVfmbD1/VkmLNVqqZVvBCtRblXb5FHmtS8FxnqCzYP4WFvz3T0TcrOqwLX1M/DQvcHaGGw0B0y4bZMs7lVScGBFxMj3vbFi2SRKbKhaitxHfYHAOAa0X7/MSS0RNAjdwoyGHeOepXOKY+h3iHeqCvgOH6LOifdHf/1aaZNwSkGotYnYScW8Yx63LnSwba7+hESrtPa/huRmB9KWvMCKbDThL/nne14hnL277EDCSocPu3rOSYjuB9gKSOdVmWsj9Dxb/iZIe+S6AiG29Esm+/eUacSba0k8wn5HhHg9d4tIcixrxveflc8vi2/wNQGVFNsGO6tB5WF0xf/plngOvQ1/ivGV/C1Qpdhzznh0ExAVJ6dwzNg7qIEBaw+BzTJTUuRcPk92Sn6QDn2Pu3mpONaEumacjW4w6ipPnPw+g2TfywJjeEcpSZaP4Q3YV5HG8D6UjWA4GSkBKculWpdCMadx0usMomsSS/74QgpYqcPkmamB4nVv1JxczYITIqItIKjD35IGKAUwAA==';
++  defaults.headers['referer'] = defaults.headers['referer'] || 'https://wx.qq.com/?&lang=zh_CN&target=t';
++
+   this.axios = _axios2.default.create(defaults);
+   if (!_global.isStandardBrowserEnv) {
+     this.Cookie = defaults.Cookie || {};
