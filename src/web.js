@@ -4,12 +4,14 @@ import QRCode from 'qrcode';
 import { config } from './config.js';
 import {
   db, listTodos, toggleTodo, deleteTodo, addTodo, stats,
-  listScheduleUsers, listScheduleItems, clearSchedule, deleteScheduleItem,
+  listScheduleUsers, listScheduleItems, clearSchedule, deleteScheduleItem, replaceSchedule,
   pomodoroTodayByOwner,
 } from './db.js';
 import { parseLocalInput, partsOf, weekOf, zonedDate, partsToStr, daysUntil } from './time.js';
 import { buildDayText } from './schedule.js';
 import { getWeather, formatWeather } from './weather.js';
+import { parseWorkbook } from './excelImport.js';
+import { upsertScheduleUser } from './db.js';
 import { events, liveStatus } from './events.js';
 
 const sseClients = new Set();
@@ -185,6 +187,21 @@ export function startWeb() {
   app.delete('/api/schedule/:owner', (req, res) => {
     clearSchedule(decodeURIComponent(req.params.owner));
     res.json({ ok: true });
+  });
+
+  // 上传课表文件(xlsx)导入:POST /api/schedule/import?owner=qq:123,body 为原始文件字节
+  app.post('/api/schedule/import', express.raw({ type: () => true, limit: '10mb' }), (req, res) => {
+    const owner = String(req.query.owner || '').trim();
+    if (!/^\w+:.+$/.test(owner)) return res.status(400).json({ error: '缺少 owner 参数(如 ?owner=qq:1487138742)' });
+    try {
+      const items = parseWorkbook(req.body);
+      if (!items.length) return res.status(400).json({ error: '文件里没解析出课程,请确认是教务系统导出的课表' });
+      upsertScheduleUser(owner, {});
+      replaceSchedule(owner, items);
+      res.json({ ok: true, count: items.length });
+    } catch (e) {
+      res.status(400).json({ error: `解析失败:${e.message}` });
+    }
   });
 
   // 删除单条课程
