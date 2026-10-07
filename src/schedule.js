@@ -83,7 +83,9 @@ function hm(min) {
 
 function weekLabel(it) {
   const parts = [];
-  if (it.week_start && it.week_end) parts.push(`${it.week_start}-${it.week_end}周`);
+  if (it.week_start && it.week_end) {
+    parts.push(it.week_start === it.week_end ? `${it.week_start}周` : `${it.week_start}-${it.week_end}周`);
+  }
   if (it.parity === 'odd') parts.push('单周');
   if (it.parity === 'even') parts.push('双周');
   return parts.length ? ` (${parts.join(' ')})` : '';
