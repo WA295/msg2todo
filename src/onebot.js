@@ -34,6 +34,7 @@ export function startOneBot() {
 
     console.log('[QQ] 机器人已连接');
     botConnections++;
+    connectedBots.add(ws);
     setStatus({ qq: 'on' });
     const state = { selfId: null, echoSeq: 0 };
     // 主动查询登录信息(不依赖客户端上报 lifecycle 事件,重连时客户端可能不再发送)
@@ -48,6 +49,7 @@ export function startOneBot() {
     });
     ws.on('close', () => {
       botConnections--;
+      connectedBots.delete(ws);
       if (botConnections <= 0) {
         botConnections = 0;
         console.log('[QQ] 机器人已断开');
@@ -62,6 +64,7 @@ export function startOneBot() {
 
 const seenMessageIds = new Map(); // 消息去重(部分插件会重复上报)
 let botConnections = 0; // 当前连接的机器人数量(状态显示用)
+const connectedBots = new Set(); // 所有已连接的 WS(供定时任务主动发消息)
 
 function isDuplicate(messageId) {
   if (!messageId) return false;
@@ -142,4 +145,29 @@ function sendAction(ws, state, action, params) {
   const echo = `echo_${++state.echoSeq}`;
   ws.send(JSON.stringify({ action, params, echo }));
   return echo;
+}
+
+/**
+ * 主动给用户发私聊消息(课表提醒等定时任务用)。
+ * @returns {boolean} 是否至少有一个可用连接收到
+ */
+export function sendQQPrivate(userId, text) {
+  let sent = false;
+  for (const ws of connectedBots) {
+    if (ws.readyState !== 1) continue;
+    try {
+      if (!ws._obState) ws._obState = { echoSeq: 0 };
+      ws.send(
+        JSON.stringify({
+          action: 'send_private_msg',
+          params: { user_id: Number(userId), message: [{ type: 'text', data: { text } }] },
+          echo: `echo_${++ws._obState.echoSeq}`,
+        })
+      );
+      sent = true;
+    } catch (e) {
+      console.warn('[QQ] 发送私聊失败:', e.message);
+    }
+  }
+  return sent;
 }

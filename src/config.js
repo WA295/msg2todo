@@ -67,6 +67,17 @@ export const config = {
 
   // 到期前提前提醒(分钟);0 = 不提前提醒,只到点提醒
   advanceMinutes: Number(process.env.REMIND_ADVANCE_MINUTES || 60),
+
+  schedule: {
+    // 每晚提醒第二天课程的时间(HH:MM)
+    notifyTime: /^\d{1,2}:\d{2}$/.test(process.env.SCHEDULE_NOTIFY_TIME || '')
+      ? process.env.SCHEDULE_NOTIFY_TIME
+      : '21:00',
+    // 全局默认开学日期(YYYY-MM-DD,第一周周一,可选);学生也可私聊单独设置
+    semesterStart: /^\d{4}-\d{2}-\d{2}$/.test(process.env.SCHEDULE_SEMESTER_START || '')
+      ? process.env.SCHEDULE_SEMESTER_START
+      : '',
+  },
 };
 
 /** 当前时间(带星期与 UTC 偏移),用于喂给 LLM 作为参考 */

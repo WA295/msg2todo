@@ -79,3 +79,78 @@ function validDate(v) {
   const d = new Date(v);
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
+
+const SCHEDULE_SYSTEM_PROMPT = `你是一个课表解析助手。用户发来几行课表文本,每行通常包含:星期、上课时间(如 08:00-09:40)、课程名,可能还有地点、周次范围(如 1-16周)、单双周(单周/双周)。
+
+请把每一节课解析成 JSON,规则:
+1. day: 0=周日,1=周一,2=周二,3=周三,4=周四,5=周五,6=周六。
+2. start / end: "HH:MM" 24 小时制字符串,精确到分钟。
+3. weekStart / weekEnd: 起止周次数字;没写周次则为 null(表示每周都上)。
+4. parity: 单周="odd",双周="even",没有则为空字符串 ""。
+5. location: 地点;没有则为空字符串 ""。
+6. name: 课程名,不要包含时间/地点/周次信息。
+7. 无法判断某一行是不是课程时跳过它。
+
+只输出一个 JSON 对象,格式:{"items":[{"day":1,"start":"08:00","end":"09:40","name":"高等数学","location":"一教101","weekStart":null,"weekEnd":null,"parity":""}]}`;
+
+/** LLM 解析课表文本 → 结构化课程数组(失败抛错) */
+export async function extractScheduleWithLLM(text) {
+  const url = `${config.llm.baseUrl}/chat/completions`;
+  const body = {
+    model: config.llm.model,
+    temperature: 0,
+    response_format: { type: 'json_object' },
+    messages: [
+      { role: 'system', content: SCHEDULE_SYSTEM_PROMPT },
+      { role: 'user', content: `课表文本:\n${text}` },
+    ],
+  };
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), config.llm.timeoutMs);
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${config.llm.apiKey}`,
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      throw new Error(`LLM HTTP ${res.status}: ${detail.slice(0, 300)}`);
+    }
+    const data = await res.json();
+    const content = data?.choices?.[0]?.message?.content ?? '';
+    if (!content) throw new Error('LLM 返回为空');
+    const obj = parseJSONLoose(content);
+    return (Array.isArray(obj.items) ? obj.items : []).map(normalizeScheduleItem).filter(Boolean);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function normalizeScheduleItem(it) {
+  const day = Number(it.day);
+  const s = String(it.start || '').match(/^(\d{1,2}):(\d{2})$/);
+  const e = String(it.end || '').match(/^(\d{1,2}):(\d{2})$/);
+  const name = String(it.name || '').trim();
+  if (![0, 1, 2, 3, 4, 5, 6].includes(day) || !s || !e || !name) return null;
+  const startMin = Number(s[1]) * 60 + Number(s[2]);
+  const endMin = Number(e[1]) * 60 + Number(e[2]);
+  if (endMin <= startMin || endMin > 24 * 60) return null;
+  const ws = Number(it.weekStart);
+  const we = Number(it.weekEnd);
+  return {
+    day,
+    startMin,
+    endMin,
+    name,
+    location: String(it.location || '').trim(),
+    weekStart: ws > 0 ? ws : null,
+    weekEnd: we > 0 ? we : null,
+    parity: ['odd', 'even'].includes(it.parity) ? it.parity : '',
+  };
+}

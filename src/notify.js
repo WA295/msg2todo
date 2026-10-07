@@ -12,9 +12,10 @@ function keyFromUrl(url) {
   return m ? m[1] : '';
 }
 
-export async function sendBark(title, body) {
-  if (!config.barkUrl) return;
-  const key = keyFromUrl(config.barkUrl);
+export async function sendBark(title, body, keyOverride) {
+  const src = keyOverride || config.barkUrl;
+  if (!src) return;
+  const key = keyFromUrl(src) || String(src).trim();
   if (!key) {
     console.warn('[推送] BARK_URL 格式不对,应为 https://api.day.app/你的密钥');
     return;
@@ -32,13 +33,14 @@ export async function sendBark(title, body) {
 }
 
 /** PushDeer(安卓)推送 */
-export async function sendPushDeer(title, body) {
-  if (!config.pushDeerKey) return;
+export async function sendPushDeer(title, body, keyOverride) {
+  const pushkey = keyOverride || config.pushDeerKey;
+  if (!pushkey) return;
   try {
     const res = await fetch(`${PUSHDEER_ROOT}/message/push`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pushkey: config.pushDeerKey, text: title, desp: body, type: 'markdown' }),
+      body: JSON.stringify({ pushkey, text: title, desp: body, type: 'markdown' }),
     });
     const data = await res.json().catch(() => null);
     if (!res.ok || (data && data.code !== 0)) {

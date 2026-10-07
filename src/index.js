@@ -6,6 +6,7 @@ console.log('  📝 msg2todo  微信/QQ 消息 → 待办');
 console.log(`  时区: ${config.tz}`);
 console.log(`  LLM: ${config.llm.enabled ? `${config.llm.model} @ ${config.llm.baseUrl}` : '未配置(使用本地规则提取)'}`);
 console.log(`  数据: ${config.dbPath}`);
+console.log(`  📚 课表: 每晚 ${config.schedule.notifyTime} 提醒学生明天的课程`);
 console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
 const handles = startAll();

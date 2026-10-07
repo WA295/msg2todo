@@ -3,6 +3,7 @@ import { startWeb } from './web.js';
 import { startOneBot } from './onebot.js';
 import { startWechat } from './wechat.js';
 import { startNotifier, stopNotifier } from './notify.js';
+import { startScheduleReminder, stopScheduleReminder } from './scheduleReminder.js';
 
 /** 启动全部服务,返回句柄(供停止时使用)。CLI 与桌面版共用。 */
 export function startAll() {
@@ -13,12 +14,14 @@ export function startAll() {
     handles.wechat = bot;
   });
   startNotifier();
+  startScheduleReminder();
   return handles;
 }
 
 /** 停止全部服务 */
 export async function stopAll(handles) {
   stopNotifier();
+  stopScheduleReminder();
   if (handles?.wechat?.stop) {
     try { await handles.wechat.stop(); } catch (e) { console.warn('[停止] 微信:', e.message); }
   }

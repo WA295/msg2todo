@@ -67,3 +67,21 @@ export function parseLocalInput(s) {
   const [, y, mo, d, h, mi] = m;
   return zonedDate(+y, +mo, +d, h ? +h : 9, mi ? +mi : 0).toISOString();
 }
+
+/** 某个日期(配置时区字段 y/mo/d)所在周的周一 */
+export function mondayOf(y, mo, d) {
+  const dt = Date.UTC(y, mo - 1, d);
+  const back = (new Date(dt).getUTCDay() + 6) % 7; // 距周一的天数
+  const nd = new Date(dt - back * 86400000);
+  return { y: nd.getUTCFullYear(), mo: nd.getUTCMonth() + 1, d: nd.getUTCDate() };
+}
+
+/** 计算某天是开学后的第几周(开学日期所在周为第 1 周);未设置开学日期返回 null */
+export function weekOf(parts, semesterStart) {
+  const m = String(semesterStart || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const sm = mondayOf(+m[1], +m[2], +m[3]);
+  const cm = mondayOf(parts.y, parts.mo, parts.d);
+  const diff = Math.round((Date.UTC(cm.y, cm.mo - 1, cm.d) - Date.UTC(sm.y, sm.mo - 1, sm.d)) / 86400000);
+  return Math.floor(diff / 7) + 1;
+}

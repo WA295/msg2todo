@@ -2,8 +2,11 @@ import path from 'node:path';
 import express from 'express';
 import QRCode from 'qrcode';
 import { config } from './config.js';
-import { listTodos, toggleTodo, deleteTodo, addTodo, stats } from './db.js';
-import { parseLocalInput } from './time.js';
+import {
+  listTodos, toggleTodo, deleteTodo, addTodo, stats,
+  listScheduleUsers, listScheduleItems, clearSchedule, deleteScheduleItem,
+} from './db.js';
+import { parseLocalInput, partsOf, weekOf } from './time.js';
 import { events, liveStatus } from './events.js';
 
 const sseClients = new Set();
@@ -83,6 +86,33 @@ export function startWeb() {
   // 运行状态快照
   app.get('/api/status', (req, res) => {
     res.json({ ...liveStatus, llm: config.llm.enabled, wechatEnabled: config.wechat.enabled });
+  });
+
+  // 课表:全部学生及其课程(看板「课表」页)
+  app.get('/api/schedule', (req, res) => {
+    const users = listScheduleUsers()
+      .map((u) => {
+        const sem = u.semester_start || config.schedule.semesterStart;
+        return {
+          ...u,
+          items: listScheduleItems(u.owner),
+          currentWeek: sem ? weekOf(partsOf(new Date()), sem) : null,
+        };
+      })
+      .filter((u) => u.items.length || u.semester_start || u.push_kind);
+    res.json({ users });
+  });
+
+  // 清空某个学生的课表
+  app.delete('/api/schedule/:owner', (req, res) => {
+    clearSchedule(decodeURIComponent(req.params.owner));
+    res.json({ ok: true });
+  });
+
+  // 删除单条课程
+  app.delete('/api/schedule/item/:id', (req, res) => {
+    if (!deleteScheduleItem(Number(req.params.id))) return res.status(404).json({ error: '课程不存在' });
+    res.json({ ok: true });
   });
 
   // 微信登录二维码(SVG,由服务端渲染)

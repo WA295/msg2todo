@@ -77,6 +77,22 @@
   .del { border: none; background: transparent; color: #c3c8d1; cursor: pointer; font-size: 16px; padding: 4px 6px; border-radius: 6px; flex-shrink: 0; }
   .del:hover { color: var(--high); background: #fef2f2; }
   .empty { text-align: center; color: var(--muted); padding: 48px 0; font-size: 14px; }
+
+  .vtabs { display: flex; gap: 8px; margin-bottom: 16px; }
+  .vtab { border: 1px solid var(--line); background: #fff; padding: 9px 20px; border-radius: 10px; cursor: pointer; font-size: 14px; color: var(--muted); }
+  .vtab.on { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; box-shadow: 0 2px 8px rgba(79,110,247,.25); }
+  .s-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+  .s-head .who { font-size: 15px; }
+  .s-head .sub { font-size: 12px; color: var(--muted); }
+  .s-day { margin-bottom: 12px; }
+  .s-dayname { font-size: 12.5px; font-weight: 600; color: var(--accent); margin-bottom: 4px; }
+  .s-item { display: flex; align-items: center; gap: 10px; padding: 7px 8px; font-size: 13.5px; border-radius: 8px; }
+  .s-item:nth-child(odd) { background: #f8f9fb; }
+  .s-item .t { flex: 1; min-width: 0; word-break: break-all; }
+  .s-week { font-size: 11px; color: var(--muted); background: #eef0f3; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+  .card.pre { white-space: pre-line; }
+  .s-actions { display: flex; gap: 8px; margin-top: 12px; justify-content: flex-end; }
+
   .live { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
   .live i { width: 8px; height: 8px; border-radius: 50%; background: #c3c8d1; display: inline-block; }
   .live.on i { background: #22c55e; animation: pulse 2s infinite; }
@@ -121,34 +137,43 @@
     </div>
   </header>
 
-  <div class="card">
-    <div class="toolbar">
-      <div class="tabs">
-        <button class="tab on" data-f="open">未完成</button>
-        <button class="tab" data-f="done">已完成</button>
-        <button class="tab" data-f="all">全部</button>
+  <div class="vtabs">
+    <button class="vtab on" data-v="todo">📝 待办看板</button>
+    <button class="vtab" data-v="sched">📚 课表</button>
+  </div>
+
+  <div id="todoView">
+    <div class="card">
+      <div class="toolbar">
+        <div class="tabs">
+          <button class="tab on" data-f="open">未完成</button>
+          <button class="tab" data-f="done">已完成</button>
+          <button class="tab" data-f="all">全部</button>
+        </div>
+        <input class="search" id="search" placeholder="搜索标题 / 备注 / 来源…" />
+        <span class="live" id="live"><i></i><span id="liveText">已连接</span></span>
       </div>
-      <input class="search" id="search" placeholder="搜索标题 / 备注 / 来源…" />
-      <span class="live" id="live"><i></i><span id="liveText">已连接</span></span>
     </div>
+
+    <div class="card">
+      <form class="add" id="addForm">
+        <input id="fTitle" placeholder="手动添加待办…" required />
+        <input id="fDue" type="datetime-local" />
+        <select id="fPriority">
+          <option value="medium">中优先级</option>
+          <option value="high">高优先级</option>
+          <option value="low">低优先级</option>
+        </select>
+        <input id="fNotes" placeholder="备注(可选)" />
+        <button class="btn" type="submit">添加</button>
+      </form>
+    </div>
+
+    <ul class="list" id="list"></ul>
+    <div class="empty" id="empty" style="display:none">暂无待办 🎉</div>
   </div>
 
-  <div class="card">
-    <form class="add" id="addForm">
-      <input id="fTitle" placeholder="手动添加待办…" required />
-      <input id="fDue" type="datetime-local" />
-      <select id="fPriority">
-        <option value="medium">中优先级</option>
-        <option value="high">高优先级</option>
-        <option value="low">低优先级</option>
-      </select>
-      <input id="fNotes" placeholder="备注(可选)" />
-      <button class="btn" type="submit">添加</button>
-    </form>
-  </div>
-
-  <ul class="list" id="list"></ul>
-  <div class="empty" id="empty" style="display:none">暂无待办 🎉</div>
+  <div id="scheduleView" style="display:none"></div>
 </div>
 
 <div class="modal" id="qrModal" style="display:none">
@@ -268,7 +293,7 @@ $('#addForm').onsubmit = async (e) => {
 // SSE 实时更新(浏览器断线自动重连),另加 30s 兜底轮询
 function connectSSE() {
   const es = new EventSource('/api/events');
-  es.addEventListener('update', load);
+  es.addEventListener('update', () => { load(); loadSchedule(); });
   es.addEventListener('status', (e) => renderStatus(JSON.parse(e.data)));
   es.addEventListener('qr', (e) => {
     const d = JSON.parse(e.data);
@@ -331,6 +356,91 @@ connectSSE();
 setInterval(load, 30000);
 fetch('/api/status').then((r) => r.json()).then(renderStatus);
 load();
+
+/* ================= 课表视图 ================= */
+const WD = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+const fmtMin = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+
+document.querySelectorAll('.vtab').forEach((btn) => {
+  btn.onclick = () => {
+    document.querySelectorAll('.vtab').forEach((b) => b.classList.remove('on'));
+    btn.classList.add('on');
+    const v = btn.dataset.v;
+    $('#todoView').style.display = v === 'todo' ? '' : 'none';
+    $('#scheduleView').style.display = v === 'sched' ? '' : 'none';
+    if (v === 'sched') loadSchedule();
+  };
+});
+
+async function loadSchedule() {
+  try {
+    const res = await fetch('/api/schedule');
+    const data = await res.json();
+    renderSchedule(data.users || []);
+  } catch {}
+}
+
+function renderSchedule(users) {
+  const box = $('#scheduleView');
+  box.innerHTML = '';
+  if (!users.length) {
+    box.appendChild(el('div', 'card pre', '还没有学生提交课表。\n让学生给机器人私聊发送课表即可,例如:\n\n课表\n周一 08:00-09:40 高等数学 @一教101\n周一 10:00-11:40 大学英语 1-16周\n周二 14:00-15:40 物理实验 双周\n\n每天 21:00 机器人会私聊提醒学生第二天的课程。'));
+    return;
+  }
+  for (const u of users) {
+    const card = el('div', 'card');
+    const head = el('div', 's-head');
+    head.appendChild(el('b', 'who', u.name || u.owner));
+    const meta = [];
+    if (u.semester_start) meta.push(`开学 ${u.semester_start}`);
+    if (u.currentWeek) meta.push(`第${u.currentWeek}周`);
+    meta.push(`提醒 ${u.notify_time || '21:00'}`);
+    meta.push(u.push_kind ? `推送 ${u.push_kind === 'bark' ? 'Bark' : 'PushDeer'}` : '未绑推送');
+    head.appendChild(el('span', 'sub', `${u.owner} · ` + meta.join(' · ')));
+    card.appendChild(head);
+
+    const days = {};
+    u.items.forEach((it) => { (days[it.day] ||= []).push(it); });
+    for (const wd of [1, 2, 3, 4, 5, 6, 0]) {
+      const arr = (days[wd] || []).slice().sort((a, b) => a.start_min - b.start_min);
+      if (!arr.length) continue;
+      const dl = el('div', 's-day');
+      dl.appendChild(el('div', 's-dayname', WD[wd] + ` (${arr.length}节)`));
+      for (const it of arr) {
+        const row = el('div', 's-item');
+        let label = `${fmtMin(it.start_min)}-${fmtMin(it.end_min)} ${it.name}`;
+        if (it.location) label += ` @${it.location}`;
+        row.appendChild(el('span', 't', label));
+        const wl = [];
+        if (it.week_start && it.week_end) wl.push(`${it.week_start}-${it.week_end}周`);
+        if (it.parity === 'odd') wl.push('单周');
+        if (it.parity === 'even') wl.push('双周');
+        if (wl.length) row.appendChild(el('span', 's-week', wl.join(' ')));
+        const del = el('button', 'del', '✕');
+        del.title = '删除这节课';
+        del.onclick = async () => {
+          if (!confirm('删除这节课?')) return;
+          await fetch(`/api/schedule/item/${it.id}`, { method: 'DELETE' });
+          loadSchedule();
+        };
+        row.appendChild(del);
+        dl.appendChild(row);
+      }
+      card.appendChild(dl);
+    }
+
+    const actions = el('div', 's-actions');
+    const clearBtn = el('button', 'mini-btn', '清空该学生课表');
+    clearBtn.onclick = async () => {
+      if (!confirm(`确定清空「${u.name || u.owner}」的课表?`)) return;
+      await fetch(`/api/schedule/${encodeURIComponent(u.owner)}`, { method: 'DELETE' });
+      loadSchedule();
+    };
+    actions.appendChild(clearBtn);
+    card.appendChild(actions);
+    box.appendChild(card);
+  }
+}
 </script>
 </body>
 </html>

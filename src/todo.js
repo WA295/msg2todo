@@ -4,6 +4,7 @@ import { extractTodoWithLLM } from './llm.js';
 import { extractTodoWithRules } from './rules.js';
 import { formatDue } from './time.js';
 import { events } from './events.js';
+import { handleScheduleCommand } from './schedule.js';
 
 /**
  * 统一的消息处理管线
@@ -28,6 +29,9 @@ export async function handleIncoming(msg) {
     sender: msg.sender,
     text,
   });
+
+  // 课表指令优先处理(「课表/我的课表/明天什么课」等),不进入待办管线
+  if (await handleScheduleCommand(msg)) return null;
 
   // 关键词预过滤
   const kw = config.todo.keywords;

@@ -60,7 +60,23 @@ ws.on('message', (data) => {
         message: [{ type: 'text', data: { text: '在吗?问你个事' } }],
       }));
     }, 1200);
-    setTimeout(() => { console.log('测试结束,退出'); process.exit(0); }, 3500);
+    setTimeout(() => {
+      // 5. 私聊:设置课表(含单双周/周次)
+      ws.send(JSON.stringify({
+        post_type: 'message', message_type: 'private', sub_type: 'friend', message_id: 1005, time: Math.floor(Date.now() / 1000),
+        user_id: 20002, sender: { user_id: 20002, nickname: '小明' },
+        message: [{ type: 'text', data: { text: '课表\n周一 08:00-09:40 高等数学 @一教101\n周一 10:00-11:40 大学英语 1-16周\n周二 14:00-15:40 物理实验 双周\n周五 19:00-20:40 形势与政策 5-8周单周' } }],
+      }));
+    }, 1500);
+    setTimeout(() => {
+      // 6. 私聊:查询明天的课
+      ws.send(JSON.stringify({
+        post_type: 'message', message_type: 'private', sub_type: 'friend', message_id: 1006, time: Math.floor(Date.now() / 1000),
+        user_id: 20002, sender: { user_id: 20002, nickname: '小明' },
+        message: [{ type: 'text', data: { text: '明天什么课' } }],
+      }));
+    }, 1800);
+    setTimeout(() => { console.log('测试结束,退出'); process.exit(0); }, 4500);
   }
 });
 

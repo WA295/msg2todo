@@ -31,6 +31,30 @@ CREATE TABLE IF NOT EXISTS messages (
   text       TEXT,
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS schedule_items (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  owner      TEXT NOT NULL,            -- 'qq:<user_id>'
+  day        INTEGER NOT NULL,         -- 0=周日 ~ 6=周六
+  start_min  INTEGER NOT NULL,         -- 距 00:00 的分钟数
+  end_min    INTEGER NOT NULL,
+  name       TEXT NOT NULL,
+  location   TEXT DEFAULT '',
+  week_start INTEGER,                  -- null = 每周
+  week_end   INTEGER,
+  parity     TEXT DEFAULT '',          -- '' | 'odd'(单周) | 'even'(双周)
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_schedule_items_owner ON schedule_items(owner);
+CREATE TABLE IF NOT EXISTS schedule_users (
+  owner          TEXT PRIMARY KEY,     -- 'qq:<user_id>'
+  name           TEXT DEFAULT '',
+  semester_start TEXT,                 -- 'YYYY-MM-DD' 开学第一周
+  notify_time    TEXT,                 -- 'HH:MM' 个人提醒时间,空=用全局
+  push_kind      TEXT DEFAULT '',      -- '' | 'bark' | 'pushdeer'
+  push_key       TEXT DEFAULT '',
+  last_remind    TEXT,                 -- 'YYYY-MM-DD' 已提醒过的"明天"日期(去重)
+  updated_at     TEXT
+);
 `);
 
 const insTodo = db.prepare(`
@@ -105,4 +129,107 @@ export function stats() {
     .prepare("SELECT SUM(status='open') AS open, SUM(status='done') AS done, COUNT(*) AS total FROM todos")
     .get();
   return { open: Number(row.open || 0), done: Number(row.done || 0), total: Number(row.total || 0) };
+}
+
+/* ================= 课表 ================= */
+
+const getScheduleUserStmt = db.prepare('SELECT * FROM schedule_users WHERE owner = ?');
+const insScheduleItem = db.prepare(`
+  INSERT INTO schedule_items (owner, day, start_min, end_min, name, location, week_start, week_end, parity, created_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`);
+
+export function getScheduleUser(owner) {
+  return getScheduleUserStmt.get(owner) || null;
+}
+
+/** 创建或更新学生信息;字段传 null 表示不修改 */
+export function upsertScheduleUser(owner, fields) {
+  const now = new Date().toISOString();
+  const cur = getScheduleUser(owner);
+  if (!cur) {
+    db.prepare(`
+      INSERT INTO schedule_users (owner, name, semester_start, notify_time, push_kind, push_key, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      owner,
+      fields.name || '',
+      fields.semesterStart ?? '',
+      fields.notifyTime ?? '',
+      fields.pushKind ?? '',
+      fields.pushKey ?? '',
+      now
+    );
+  } else {
+    db.prepare(`
+      UPDATE schedule_users SET
+        name = COALESCE(?, name),
+        semester_start = COALESCE(?, semester_start),
+        notify_time = COALESCE(?, notify_time),
+        push_kind = COALESCE(?, push_kind),
+        push_key = COALESCE(?, push_key),
+        updated_at = ?
+      WHERE owner = ?
+    `).run(
+      fields.name ?? null,
+      fields.semesterStart ?? null,
+      fields.notifyTime ?? null,
+      fields.pushKind ?? null,
+      fields.pushKey ?? null,
+      now,
+      owner
+    );
+  }
+  events.emit('change');
+  return getScheduleUser(owner);
+}
+
+function insertScheduleItems(owner, items) {
+  const now = new Date().toISOString();
+  for (const it of items) {
+    insScheduleItem.run(owner, it.day, it.startMin, it.endMin, it.name, it.location || '', it.weekStart ?? null, it.weekEnd ?? null, it.parity || '', now);
+  }
+}
+
+/** 整体覆盖课表 */
+export function replaceSchedule(owner, items) {
+  db.exec('BEGIN');
+  try {
+    db.prepare('DELETE FROM schedule_items WHERE owner = ?').run(owner);
+    insertScheduleItems(owner, items);
+    db.exec('COMMIT');
+  } catch (e) {
+    db.exec('ROLLBACK');
+    throw e;
+  }
+  events.emit('change');
+}
+
+/** 追加课程 */
+export function addScheduleItems(owner, items) {
+  insertScheduleItems(owner, items);
+  events.emit('change');
+}
+
+export function listScheduleItems(owner) {
+  return db
+    .prepare('SELECT * FROM schedule_items WHERE owner = ? ORDER BY day, start_min, id')
+    .all(owner)
+    .map((r) => ({ ...r, id: Number(r.id) }));
+}
+
+export function clearSchedule(owner) {
+  const r = db.prepare('DELETE FROM schedule_items WHERE owner = ?').run(owner);
+  if (r.changes > 0) events.emit('change');
+  return r.changes > 0;
+}
+
+export function deleteScheduleItem(id) {
+  const r = db.prepare('DELETE FROM schedule_items WHERE id = ?').run(id);
+  if (r.changes > 0) events.emit('change');
+  return r.changes > 0;
+}
+
+export function listScheduleUsers() {
+  return db.prepare('SELECT * FROM schedule_users ORDER BY updated_at DESC').all();
 }
