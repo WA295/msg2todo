@@ -6,6 +6,7 @@ import {
   db, listTodos, toggleTodo, deleteTodo, addTodo, stats,
   listScheduleUsers, listScheduleItems, clearSchedule, deleteScheduleItem, replaceSchedule,
   pomodoroTodayByOwner, getScheduleUser, upsertScheduleUser, getUserByToken, setWebToken, randomToken,
+  getWeatherUser,
 } from './db.js';
 import { parseLocalInput, partsOf, weekOf, zonedDate, partsToStr, daysUntil } from './time.js';
 import { buildDayText } from './schedule.js';
@@ -188,10 +189,19 @@ export function startWeb() {
       .slice(0, 8)
       .map((t) => ({ ...t, id: Number(t.id) }));
 
+    // 天气:学生显示自己设置的城市(或全局),管理员显示全局
     let weather = null;
-    if (config.weather.city) {
+    let weatherCity = null;
+    if (!me.isAdmin) {
+      const wu = getWeatherUser(me.owner);
+      if (wu && wu.enabled !== 0) weatherCity = wu.city || config.weather.city;
+      else if (!wu) weatherCity = config.weather.city; // 未设置过 → 用全局
+    } else {
+      weatherCity = config.weather.city;
+    }
+    if (weatherCity) {
       try {
-        weather = formatWeather(await getWeather(config.weather.city));
+        weather = formatWeather(await getWeather(weatherCity));
       } catch (e) {
         console.warn('[看板] 天气获取失败:', e.message);
       }
