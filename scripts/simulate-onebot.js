@@ -76,6 +76,22 @@ ws.on('message', (data) => {
         message: [{ type: 'text', data: { text: '明天什么课' } }],
       }));
     }, 1800);
+    setTimeout(() => {
+      // 7. 私聊:番茄钟
+      ws.send(JSON.stringify({
+        post_type: 'message', message_type: 'private', sub_type: 'friend', message_id: 1007, time: Math.floor(Date.now() / 1000),
+        user_id: 20002, sender: { user_id: 20002, nickname: '小明' },
+        message: [{ type: 'text', data: { text: '番茄 25 5 2' } }],
+      }));
+    }, 2100);
+    setTimeout(() => {
+      // 8. 私聊:番茄统计
+      ws.send(JSON.stringify({
+        post_type: 'message', message_type: 'private', sub_type: 'friend', message_id: 1008, time: Math.floor(Date.now() / 1000),
+        user_id: 20002, sender: { user_id: 20002, nickname: '小明' },
+        message: [{ type: 'text', data: { text: '番茄统计' } }],
+      }));
+    }, 2400);
     setTimeout(() => { console.log('测试结束,退出'); process.exit(0); }, 4500);
   }
 });

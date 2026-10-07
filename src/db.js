@@ -3,6 +3,7 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { config } from './config.js';
 import { events } from './events.js';
+import { partsOf } from './time.js';
 
 fs.mkdirSync(path.dirname(config.dbPath), { recursive: true });
 
@@ -54,6 +55,25 @@ CREATE TABLE IF NOT EXISTS schedule_users (
   push_key       TEXT DEFAULT '',
   last_remind    TEXT,                 -- 'YYYY-MM-DD' 已提醒过的"明天"日期(去重)
   updated_at     TEXT
+);
+CREATE TABLE IF NOT EXISTS pomodoro (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  owner         TEXT NOT NULL,         -- 'qq:<user_id>'
+  focus_min     INTEGER NOT NULL,      -- 专注时长(分钟)
+  rest_min      INTEGER NOT NULL,      -- 休息时长(分钟)
+  rounds        INTEGER NOT NULL DEFAULT 1,  -- 总轮数
+  round         INTEGER NOT NULL DEFAULT 1,  -- 当前轮
+  phase         TEXT NOT NULL DEFAULT 'focus', -- focus | rest
+  phase_started TEXT NOT NULL,         -- 本阶段开始时间 ISO
+  status        TEXT NOT NULL DEFAULT 'running', -- running | done | cancelled
+  created_at    TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS pomodoro_log (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  owner       TEXT NOT NULL,
+  focus_min   INTEGER NOT NULL,
+  day         TEXT NOT NULL,           -- 'YYYY-MM-DD'(配置时区,统计用)
+  finished_at TEXT NOT NULL
 );
 `);
 
@@ -232,4 +252,71 @@ export function deleteScheduleItem(id) {
 
 export function listScheduleUsers() {
   return db.prepare('SELECT * FROM schedule_users ORDER BY updated_at DESC').all();
+}
+
+/* ================= 番茄钟 ================= */
+
+/** 开始新的番茄钟(自动取消进行中的) */
+export function startPomodoro({ owner, focusMin, restMin, rounds }) {
+  const now = new Date().toISOString();
+  db.prepare("UPDATE pomodoro SET status='cancelled' WHERE owner = ? AND status = 'running'").run(owner);
+  const r = db
+    .prepare(`
+      INSERT INTO pomodoro (owner, focus_min, rest_min, rounds, round, phase, phase_started, status, created_at)
+      VALUES (?, ?, ?, ?, 1, 'focus', ?, 'running', ?)
+    `)
+    .run(owner, focusMin, restMin, rounds, now, now);
+  events.emit('change');
+  return Number(r.lastInsertRowid);
+}
+
+export function getRunningPomodoro(owner) {
+  return db.prepare("SELECT * FROM pomodoro WHERE owner = ? AND status = 'running'").get(owner) || null;
+}
+
+export function stopPomodoro(owner) {
+  const r = db.prepare("UPDATE pomodoro SET status = 'cancelled' WHERE owner = ? AND status = 'running'").run(owner);
+  if (r.changes > 0) events.emit('change');
+  return r.changes > 0;
+}
+
+/** 把某轮设为新阶段(rest/focus 切换) */
+export function setPomodoroPhase(id, { phase, round, phaseStarted }) {
+  db.prepare('UPDATE pomodoro SET phase = ?, round = ?, phase_started = ? WHERE id = ?')
+    .run(phase, round, phaseStarted, id);
+  events.emit('change');
+}
+
+export function finishPomodoro(id) {
+  db.prepare("UPDATE pomodoro SET status = 'done' WHERE id = ?").run(id);
+  events.emit('change');
+}
+
+export function logPomodoro({ owner, focusMin }) {
+  const p = partsOf(new Date());
+  const day = `${p.y}-${String(p.mo).padStart(2, '0')}-${String(p.d).padStart(2, '0')}`;
+  db.prepare('INSERT INTO pomodoro_log (owner, focus_min, day, finished_at) VALUES (?, ?, ?, ?)')
+    .run(owner, focusMin, day, new Date().toISOString());
+}
+
+function todayStr() {
+  const p = partsOf(new Date());
+  return `${p.y}-${String(p.mo).padStart(2, '0')}-${String(p.d).padStart(2, '0')}`;
+}
+
+/** 某人的番茄统计 */
+export function pomodoroStats(owner) {
+  const day = todayStr();
+  const today = db.prepare('SELECT COUNT(*) c FROM pomodoro_log WHERE owner = ? AND day = ?').get(owner, day).c;
+  const total = db.prepare('SELECT COUNT(*) c FROM pomodoro_log WHERE owner = ?').get(owner).c;
+  const focusMinutes = db.prepare('SELECT COALESCE(SUM(focus_min),0) m FROM pomodoro_log WHERE owner = ?').get(owner).m;
+  return { today: Number(today), total: Number(total), focusMinutes: Number(focusMinutes) };
+}
+
+/** 全部用户今天的番茄数(看板用) */
+export function pomodoroTodayByOwner() {
+  const rows = db.prepare('SELECT owner, COUNT(*) c FROM pomodoro_log WHERE day = ? GROUP BY owner').all(todayStr());
+  const map = {};
+  for (const r of rows) map[r.owner] = Number(r.c);
+  return map;
 }

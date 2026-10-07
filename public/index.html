@@ -396,6 +396,7 @@ function renderSchedule(users) {
     if (u.currentWeek) meta.push(`第${u.currentWeek}周`);
     meta.push(`提醒 ${u.notify_time || '21:00'}`);
     meta.push(u.push_kind ? `推送 ${u.push_kind === 'bark' ? 'Bark' : 'PushDeer'}` : '未绑推送');
+    meta.push(`🍅今日 ${u.pomodoroToday || 0}`);
     head.appendChild(el('span', 'sub', `${u.owner} · ` + meta.join(' · ')));
     card.appendChild(head);
 

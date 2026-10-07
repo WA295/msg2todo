@@ -5,6 +5,7 @@ import { config } from './config.js';
 import {
   listTodos, toggleTodo, deleteTodo, addTodo, stats,
   listScheduleUsers, listScheduleItems, clearSchedule, deleteScheduleItem,
+  pomodoroTodayByOwner,
 } from './db.js';
 import { parseLocalInput, partsOf, weekOf } from './time.js';
 import { events, liveStatus } from './events.js';
@@ -90,6 +91,7 @@ export function startWeb() {
 
   // 课表:全部学生及其课程(看板「课表」页)
   app.get('/api/schedule', (req, res) => {
+    const pomo = pomodoroTodayByOwner();
     const users = listScheduleUsers()
       .map((u) => {
         const sem = u.semester_start || config.schedule.semesterStart;
@@ -97,6 +99,7 @@ export function startWeb() {
           ...u,
           items: listScheduleItems(u.owner),
           currentWeek: sem ? weekOf(partsOf(new Date()), sem) : null,
+          pomodoroToday: pomo[u.owner] || 0,
         };
       })
       .filter((u) => u.items.length || u.semester_start || u.push_kind);

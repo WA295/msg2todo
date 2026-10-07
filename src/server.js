@@ -4,6 +4,7 @@ import { startOneBot } from './onebot.js';
 import { startWechat } from './wechat.js';
 import { startNotifier, stopNotifier } from './notify.js';
 import { startScheduleReminder, stopScheduleReminder } from './scheduleReminder.js';
+import { startPomodoroChecker, stopPomodoroChecker } from './pomodoro.js';
 
 /** 启动全部服务,返回句柄(供停止时使用)。CLI 与桌面版共用。 */
 export function startAll() {
@@ -15,6 +16,7 @@ export function startAll() {
   });
   startNotifier();
   startScheduleReminder();
+  startPomodoroChecker();
   return handles;
 }
 
@@ -22,6 +24,7 @@ export function startAll() {
 export async function stopAll(handles) {
   stopNotifier();
   stopScheduleReminder();
+  stopPomodoroChecker();
   if (handles?.wechat?.stop) {
     try { await handles.wechat.stop(); } catch (e) { console.warn('[停止] 微信:', e.message); }
   }
