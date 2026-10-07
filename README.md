@@ -42,6 +42,8 @@
 - [全部配置项](#全部配置项)
 - [使用示例](#使用示例)
 - [打包与分发](#打包与分发)
+- [手机 App(安卓安装包)](#手机-app安卓安装包)
+- [更新升级](#更新升级)
 - [本地测试](#本地测试无需真实-qq)
 - [常见问题](#常见问题)
 - [项目结构](#项目结构)
@@ -326,6 +328,15 @@ npm run dist:linux                # Linux AppImage
 npm run dist:win                  # Windows 安装包(需 wine)
 bash scripts/install-desktop.sh   # Linux 免 FUSE 安装到应用菜单
 ```
+
+## 手机 App(安卓安装包)
+
+```bash
+npm run build:apk                        # 打包(内置当前服务器地址)
+SERVER=http://1.2.3.4:8080 TOKEN=xxx npm run build:apk   # 指定云端地址+访问密码
+```
+
+产物 `dist/msg2todo-安卓.apk`,装完打开即用(全屏无浏览器栏)。见 [云服务器部署](docs/云服务器部署.md) ⭐ 部署后手机在任何网络都能用。
 
 ## 更新升级
 

@@ -236,6 +236,17 @@
   </div>
 </div>
 
+<div class="modal" id="authModal" style="display:none">
+  <div class="modal-card" style="text-align:left; min-width:min(340px, 90vw)">
+    <h3 style="text-align:center">🔒 需要访问密码</h3>
+    <div class="sub" style="text-align:center">该服务器开启了访问保护,请输入密码</div>
+    <input id="authToken" type="password" placeholder="访问密码" style="width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:8px; font-size:14px; outline:none" />
+    <div style="display:flex; gap:10px; margin-top:14px">
+      <button class="btn" id="authSave" style="flex:1">进入</button>
+    </div>
+  </div>
+</div>
+
 <script src="app-config.js"></script>
 <script>
 const $ = (s) => document.querySelector(s);
@@ -250,11 +261,24 @@ let BASE = (localStorage.getItem('server') || '').replace(/\/+$/, '');
 if (!BASE && inApp) {
   BASE = (window.APP_CONFIG?.server || '').replace(/\/+$/, '');
 }
+let AUTH = (localStorage.getItem('token') || window.APP_CONFIG?.authToken || '').trim();
 const rawFetch = window.fetch;
 window.fetch = (input, init) => {
   const url = typeof input === 'string' && input.startsWith('/') ? BASE + input : input;
-  return rawFetch(url, init);
+  init = init || {};
+  if (AUTH) init.headers = { ...(init.headers || {}), 'x-auth-token': AUTH };
+  return rawFetch(url, init).then((res) => {
+    if (res.status === 401) $('#authModal').style.display = 'flex';
+    return res;
+  });
 };
+
+// 访问密码弹窗
+$('#authSave').onclick = () => {
+  localStorage.setItem('token', $('#authToken').value.trim());
+  location.reload();
+};
+$('#authToken').onkeydown = (e) => { if (e.key === 'Enter') $('#authSave').click(); };
 
 // 服务器设置弹窗(仅当没有可用地址时自动弹出)
 $('#setBtn').onclick = () => {
@@ -369,7 +393,7 @@ $('#addForm').onsubmit = async (e) => {
 
 // SSE 实时更新(浏览器断线自动重连),另加 30s 兜底轮询
 function connectSSE() {
-  const es = new EventSource(BASE + '/api/events');
+  const es = new EventSource(BASE + '/api/events' + (AUTH ? `?token=${encodeURIComponent(AUTH)}` : ''));
   es.addEventListener('update', () => { load(); loadSchedule(); loadHome(); });
   es.addEventListener('status', (e) => renderStatus(JSON.parse(e.data)));
   es.addEventListener('qr', (e) => {

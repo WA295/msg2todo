@@ -12,11 +12,18 @@ fi
 
 echo "═══ 打包安卓 APK ═══"
 
-# 可选:自定义内置服务器地址,如 SERVER=http://1.2.3.4:8080 bash scripts/build-apk.sh
-if [ -n "$SERVER" ]; then
-  echo "内置服务器地址: $SERVER"
-  echo "/** 打包时内置的服务器地址(安卓 App 打开即用;改了这里要重新 build:apk) */" > public/app-config.js
-  echo "window.APP_CONFIG = { server: '${SERVER%/}' };" >> public/app-config.js
+# 可选:内置服务器配置,如 SERVER=http://1.2.3.4:8080 TOKEN=xxx bash scripts/build-apk.sh
+if [ -n "$SERVER" ] || [ -n "$TOKEN" ]; then
+  S="${SERVER:-$(node -e "console.log(require('./public/app-config.js')?1:'')" 2>/dev/null; grep -oP "(?<=server: ')[^']+" public/app-config.js 2>/dev/null)}"
+  T="${TOKEN:-$(grep -oP "(?<=authToken: ')[^']*" public/app-config.js 2>/dev/null)}"
+  echo "内置服务器地址: ${S%/}  访问令牌: ${T:+已设置}"
+  {
+    echo '/** 打包时内置的服务器配置(安卓 App 打开即用;改了这里要重新 build:apk) */'
+    echo 'window.APP_CONFIG = {'
+    echo "  server: '${S%/}',"
+    echo "  authToken: '$T',"
+    echo '};'
+  } > public/app-config.js
 fi
 
 npx cap sync android

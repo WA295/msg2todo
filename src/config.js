@@ -29,6 +29,8 @@ export const config = {
   web: {
     host: process.env.WEB_HOST || '0.0.0.0',
     port: Number(process.env.WEB_PORT || 8080),
+    // 访问令牌:设置后 /api 接口需要 x-auth-token(云端部署强烈建议设置)
+    authToken: (process.env.WEB_AUTH_TOKEN || '').trim(),
   },
 
   onebot: {

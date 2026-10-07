@@ -55,9 +55,17 @@ export function startWeb() {
   app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-auth-token');
     if (req.method === 'OPTIONS') return res.sendStatus(204);
     next();
+  });
+
+  // 访问令牌(云端部署时启用):/api 接口需要 x-auth-token 或 ?token=
+  app.use('/api', (req, res, next) => {
+    if (!config.web.authToken) return next();
+    const t = req.headers['x-auth-token'] || req.query.token;
+    if (t === config.web.authToken) return next();
+    res.status(401).json({ error: 'unauthorized' });
   });
 
   // 待办列表
