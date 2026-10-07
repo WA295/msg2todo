@@ -98,13 +98,7 @@ CREATE TABLE IF NOT EXISTS review_log (
 );
 `);
 
-const insTodo = db.prepare(`
-  INSERT INTO todos (title, due_at, priority, notes, source, chat_name, sender_name, status, created_at)
-  VALUES (?, ?, ?, ?, ?, ?, ?, 'open', ?)
-`);
-const getTodoStmt = db.prepare('SELECT * FROM todos WHERE id = ?');
-
-// 迁移:notified_at 用于到期推送去重,notified_adv_at 用于提前提醒去重
+// 迁移:todos(notified_at 去重 / notified_adv_at 提前提醒去重 / owner 多用户归属)
 const todoCols = db.prepare('PRAGMA table_info(todos)').all().map((c) => c.name);
 if (!todoCols.includes('notified_at')) {
   db.exec('ALTER TABLE todos ADD COLUMN notified_at TEXT');
@@ -112,8 +106,17 @@ if (!todoCols.includes('notified_at')) {
 if (!todoCols.includes('notified_adv_at')) {
   db.exec('ALTER TABLE todos ADD COLUMN notified_adv_at TEXT');
 }
+if (!todoCols.includes('owner')) {
+  db.exec("ALTER TABLE todos ADD COLUMN owner TEXT DEFAULT ''");
+}
 
-// 迁移:schedule_users 扩展(上课前提醒/睡觉提醒/倒计时去重)
+const insTodo = db.prepare(`
+  INSERT INTO todos (title, due_at, priority, notes, source, chat_name, sender_name, owner, status, created_at)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?)
+`);
+const getTodoStmt = db.prepare('SELECT * FROM todos WHERE id = ?');
+
+// 迁移:schedule_users 扩展(上课前提醒/睡觉提醒/倒计时去重/网页令牌)
 const suCols = db.prepare('PRAGMA table_info(schedule_users)').all().map((c) => c.name);
 if (!suCols.includes('class_remind')) {
   db.exec('ALTER TABLE schedule_users ADD COLUMN class_remind INTEGER DEFAULT 1');
@@ -127,6 +130,9 @@ if (!suCols.includes('last_sleep_remind')) {
 if (!suCols.includes('last_countdown_remind')) {
   db.exec('ALTER TABLE schedule_users ADD COLUMN last_countdown_remind TEXT');
 }
+if (!suCols.includes('web_token')) {
+  db.exec('ALTER TABLE schedule_users ADD COLUMN web_token TEXT DEFAULT \'\'');
+}
 
 // 迁移:schedule_items 上课前提醒去重
 const siCols = db.prepare('PRAGMA table_info(schedule_items)').all().map((c) => c.name);
@@ -134,18 +140,22 @@ if (!siCols.includes('reminded_day')) {
   db.exec('ALTER TABLE schedule_items ADD COLUMN reminded_day TEXT');
 }
 
-export function addTodo({ title, dueAt = null, priority = 'medium', notes = '', source = 'manual', chatName = '', senderName = '' }) {
+export function addTodo({ title, dueAt = null, priority = 'medium', notes = '', source = 'manual', chatName = '', senderName = '', owner = '' }) {
   const now = new Date().toISOString();
-  const r = insTodo.run(title, dueAt, priority, notes, source, chatName, senderName, now);
+  const r = insTodo.run(title, dueAt, priority, notes, source, chatName, senderName, owner, now);
   events.emit('change');
   return getTodoStmt.get(Number(r.lastInsertRowid));
 }
 
-export function listTodos({ status = 'all', q = '' } = {}) {
+export function listTodos({ status = 'all', q = '', owner = null } = {}) {
   const conds = [];
   const args = [];
   if (status === 'open') conds.push("status = 'open'");
   if (status === 'done') conds.push("status = 'done'");
+  if (owner !== null && owner !== undefined) {
+    conds.push('owner = ?');
+    args.push(owner);
+  }
   if (q) {
     conds.push('(title LIKE ? OR notes LIKE ? OR sender_name LIKE ? OR chat_name LIKE ?)');
     const like = `%${q}%`;
@@ -455,4 +465,21 @@ export function setReviewLog(owner, week) {
 
 export function setClassReminded(id, day) {
   db.prepare('UPDATE schedule_items SET reminded_day = ? WHERE id = ?').run(day, id);
+}
+
+/* ================= 多用户令牌 ================= */
+
+import { randomBytes } from 'node:crypto';
+
+export function randomToken() {
+  return randomBytes(16).toString('hex');
+}
+
+export function getUserByToken(token) {
+  if (!token) return null;
+  return db.prepare('SELECT * FROM schedule_users WHERE web_token = ?').get(token) || null;
+}
+
+export function setWebToken(owner, token) {
+  db.prepare('UPDATE schedule_users SET web_token = ? WHERE owner = ?').run(token, owner);
 }

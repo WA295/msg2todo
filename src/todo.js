@@ -84,6 +84,7 @@ export async function handleIncoming(msg) {
     source: msg.platform,
     chatName: msg.chatName,
     senderName: msg.sender,
+    owner: `${msg.platform}:${msg.chatId}`,
   });
 
   console.log(

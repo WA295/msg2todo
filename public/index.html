@@ -238,12 +238,13 @@
 
 <div class="modal" id="authModal" style="display:none">
   <div class="modal-card" style="text-align:left; min-width:min(340px, 90vw)">
-    <h3 style="text-align:center">🔒 需要访问密码</h3>
-    <div class="sub" style="text-align:center">该服务器开启了访问保护,请输入密码</div>
-    <input id="authToken" type="password" placeholder="访问密码" style="width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:8px; font-size:14px; outline:none" />
-    <div style="display:flex; gap:10px; margin-top:14px">
-      <button class="btn" id="authSave" style="flex:1">进入</button>
-    </div>
+    <h3 style="text-align:center">🔒 登录</h3>
+    <div class="sub" style="text-align:center">学生输入自己的 QQ 号绑定,数据互不可见</div>
+    <input id="bindQq" type="tel" placeholder="你的 QQ 号" style="width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:8px; font-size:14px; outline:none" />
+    <button class="btn" id="bindBtn" style="width:100%; margin-top:10px">学生登录</button>
+    <div class="sub" style="margin:14px 0 6px; text-align:center; border-top:1px dashed var(--line); padding-top:12px">管理员</div>
+    <input id="authToken" type="password" placeholder="管理员密码" style="width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:8px; font-size:14px; outline:none" />
+    <button class="btn" id="authSave" style="width:100%; margin-top:10px">管理员登录</button>
   </div>
 </div>
 
@@ -273,12 +274,36 @@ window.fetch = (input, init) => {
   });
 };
 
-// 访问密码弹窗
+// 访问密码/绑定弹窗
 $('#authSave').onclick = () => {
   localStorage.setItem('token', $('#authToken').value.trim());
   location.reload();
 };
 $('#authToken').onkeydown = (e) => { if (e.key === 'Enter') $('#authSave').click(); };
+$('#bindBtn').onclick = async () => {
+  const qq = $('#bindQq').value.trim();
+  if (!/^\d{5,12}$/.test(qq)) { alert('请输入正确的 QQ 号(5~12 位数字)'); return; }
+  $('#bindBtn').textContent = '绑定中…';
+  try {
+    const res = await rawFetch(`${BASE}/api/bind`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ qq }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (res.ok && d.token) {
+      localStorage.setItem('token', d.token);
+      localStorage.setItem('me', JSON.stringify({ name: d.name, owner: d.owner }));
+      location.reload();
+    } else {
+      alert('绑定失败:' + (d.error || res.status));
+      $('#bindBtn').textContent = '学生登录';
+    }
+  } catch (e) {
+    alert('网络错误:' + e.message);
+    $('#bindBtn').textContent = '学生登录';
+  }
+};
 
 // 服务器设置弹窗(仅当没有可用地址时自动弹出)
 $('#setBtn').onclick = () => {
@@ -466,8 +491,18 @@ async function loadHome() {
   try {
     const res = await fetch('/api/overview');
     const d = await res.json();
+    window.ME = d.me;
+    applyRole();
     renderHome(d);
   } catch {}
+}
+
+/** 按角色隐藏管理员专属内容 */
+function applyRole() {
+  const admin = window.ME?.isAdmin;
+  document.querySelectorAll('.vtab[data-v="todo"]').forEach((b) => (b.style.display = admin ? '' : 'none'));
+  const on = document.querySelector('.vtab.on');
+  if (!admin && on?.dataset.v === 'todo') document.querySelector('.vtab[data-v="home"]').click();
 }
 
 function vcard(cls, ...children) {
@@ -561,7 +596,7 @@ function renderHome(d) {
   fcard.appendChild(el('div', 'h2', '🧭 功能入口'));
   const grid = el('div', 'feat-grid');
   const feats = [
-    { icon: '📝', name: '待办', desc: '聊天消息自动提取 / 手动添加', cmd: '发消息即可', v: 'todo' },
+    { icon: '📝', name: '待办', desc: '聊天消息自动提取 / 手动添加', cmd: '发消息即可', v: 'todo', adminOnly: true },
     { icon: '📚', name: '课表', desc: '发文本或 xlsx 文件导入,每晚提醒', cmd: '课表 / 发文件', v: 'sched' },
     { icon: '🍅', name: '番茄钟', desc: '专注计时,到点提醒', cmd: '番茄 25 5 4', v: null },
     { icon: '🌤', name: '天气', desc: '每日天气+带伞提示', cmd: '设置天气 城市', v: null },
@@ -571,6 +606,7 @@ function renderHome(d) {
     { icon: '🔔', name: '手机推送', desc: d.status.bark ? 'Bark 已绑定 ✓' : '未绑定推送', cmd: d.status.bark ? '已推送至手机' : '设置推送 <key>', v: null },
   ];
   for (const f of feats) {
+    if (f.adminOnly && !window.ME?.isAdmin) continue;
     const c = vcard('feat', el('div', 'icon', f.icon), el('div', 'name', f.name), el('div', 'desc', f.desc), el('span', 'cmd', f.cmd));
     if (f.v) c.onclick = () => { document.querySelector(`.vtab[data-v="${f.v}"]`).click(); };
     grid.appendChild(c);
@@ -619,13 +655,17 @@ function renderSchedule(users, weather) {
   box.innerHTML = '';
 
   // 上传课表文件导入(iOS/安卓/电脑通用)
+  const isAdmin = window.ME?.isAdmin;
   const up = el('div', 'card');
   up.appendChild(el('div', 'h2', '📥 导入课表文件(教务系统导出的 xlsx)'));
   const row = el('div', 'toolbar');
-  const ownerInp = el('input');
-  ownerInp.className = 'search';
-  ownerInp.placeholder = '导入到哪个 QQ 号(如 1487138742)';
-  ownerInp.value = localStorage.getItem('importOwner') || '1487138742';
+  let ownerInp = null;
+  if (isAdmin) {
+    ownerInp = el('input');
+    ownerInp.className = 'search';
+    ownerInp.placeholder = '导入到哪个 QQ 号(如 1487138742)';
+    ownerInp.value = localStorage.getItem('importOwner') || '1487138742';
+  }
   const fileInp = el('input');
   fileInp.type = 'file';
   fileInp.accept = '.xlsx,.xls';
@@ -635,12 +675,13 @@ function renderSchedule(users, weather) {
   fileInp.onchange = async () => {
     const f = fileInp.files[0];
     if (!f) return;
-    localStorage.setItem('importOwner', ownerInp.value.trim());
+    if (isAdmin) localStorage.setItem('importOwner', ownerInp.value.trim());
     pick.textContent = '导入中…';
     pick.disabled = true;
     try {
       const buf = await f.arrayBuffer();
-      const res = await fetch(`/api/schedule/import?owner=qq:${encodeURIComponent(ownerInp.value.trim())}`, {
+      const q = isAdmin ? `?owner=qq:${encodeURIComponent(ownerInp.value.trim())}` : '';
+      const res = await fetch(`/api/schedule/import${q}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/octet-stream' },
         body: buf,
@@ -655,7 +696,7 @@ function renderSchedule(users, weather) {
     pick.disabled = false;
     fileInp.value = '';
   };
-  row.appendChild(ownerInp);
+  if (ownerInp) row.appendChild(ownerInp);
   row.appendChild(pick);
   row.appendChild(el('span', 'live', '支持东北大学教务导出的 xlsx,自动识别节次/周次/教室'));
   up.appendChild(row);
@@ -710,14 +751,16 @@ function renderSchedule(users, weather) {
     }
 
     const actions = el('div', 's-actions');
-    const clearBtn = el('button', 'mini-btn', '清空该学生课表');
-    clearBtn.onclick = async () => {
-      if (!confirm(`确定清空「${u.name || u.owner}」的课表?`)) return;
-      await fetch(`/api/schedule/${encodeURIComponent(u.owner)}`, { method: 'DELETE' });
-      loadSchedule();
-    };
-    actions.appendChild(clearBtn);
-    card.appendChild(actions);
+    if (isAdmin) {
+      const clearBtn = el('button', 'mini-btn', '清空该学生课表');
+      clearBtn.onclick = async () => {
+        if (!confirm(`确定清空「${u.name || u.owner}」的课表?`)) return;
+        await fetch(`/api/schedule/${encodeURIComponent(u.owner)}`, { method: 'DELETE' });
+        loadSchedule();
+      };
+      actions.appendChild(clearBtn);
+      card.appendChild(actions);
+    }
     box.appendChild(card);
   }
 }
