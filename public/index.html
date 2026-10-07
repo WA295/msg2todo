@@ -167,6 +167,8 @@
       <div class="conns" id="conns"></div>
       <button class="mini-btn" id="wxBtn">微信登录</button>
       <button class="mini-btn" id="setBtn">⚙️ 服务器</button>
+      <span class="stats" id="meLabel" style="display:none"></span>
+      <button class="mini-btn" id="logoutBtn" style="display:none">退出登录</button>
       <div class="stats" id="stats"></div>
     </div>
   </header>
@@ -497,13 +499,29 @@ async function loadHome() {
   } catch {}
 }
 
-/** 按角色隐藏管理员专属内容 */
+/** 按角色隐藏管理员专属内容 + 显示当前身份 */
 function applyRole() {
   const admin = window.ME?.isAdmin;
   document.querySelectorAll('.vtab[data-v="todo"]').forEach((b) => (b.style.display = admin ? '' : 'none'));
   const on = document.querySelector('.vtab.on');
   if (!admin && on?.dataset.v === 'todo') document.querySelector('.vtab[data-v="home"]').click();
+  // 身份显示 + 退出按钮
+  const hasToken = Boolean(localStorage.getItem('token'));
+  $('#logoutBtn').style.display = hasToken ? '' : 'none';
+  if (window.ME && hasToken) {
+    $('#meLabel').style.display = '';
+    $('#meLabel').textContent = `👤 ${window.ME.isAdmin ? '管理员' : window.ME.name}`;
+  } else {
+    $('#meLabel').style.display = 'none';
+  }
 }
+
+// 退出登录:清除令牌回到登录界面
+$('#logoutBtn').onclick = () => {
+  localStorage.removeItem('token');
+  localStorage.removeItem('me');
+  location.reload();
+};
 
 function vcard(cls, ...children) {
   const n = el('div', cls);
