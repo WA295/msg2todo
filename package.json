@@ -12,7 +12,9 @@
     "gen-icon": "node scripts/gen-icon.js",
     "postinstall": "patch-package && electron-builder install-app-deps",
     "rebuild-native": "electron-rebuild -f -w leveldown",
-    "dist:linux": "electron-builder --linux AppImage"
+    "dist:linux": "electron-builder --linux AppImage",
+    "build:apk": "bash scripts/build-apk.sh",
+    "gen-icons": "node scripts/gen-android-icons.js"
   },
   "engines": {
     "node": ">=22.5"

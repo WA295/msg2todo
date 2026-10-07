@@ -6,3 +6,4 @@ dist/
 *.AppImage
 *.zip
 *.memory-card.json
+public/*.apk
