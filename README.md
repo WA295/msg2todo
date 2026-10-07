@@ -327,6 +327,18 @@ npm run dist:win                  # Windows 安装包(需 wine)
 bash scripts/install-desktop.sh   # Linux 免 FUSE 安装到应用菜单
 ```
 
+## 更新升级
+
+程序与数据分离(`data/` 与 `.env` 不进仓库),更新**不会丢课表/待办/配置**:
+
+```bash
+bash scripts/update.sh   # 拉取最新代码 → 装新依赖(如有)→ 重启服务
+```
+
+- 用源码运行(systemd 服务)时,一条命令即完成升级,数据原样保留
+- 打包版(AppImage/exe)是代码快照:代码更新后重新打包发布,老用户下载新版本替换即可
+- 数据库结构升级自动完成(启动时迁移旧表)
+
 > GitHub 不可达时加国内镜像:
 > `ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/ ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries npm run dist:linux`
 >
