@@ -75,6 +75,14 @@ CREATE TABLE IF NOT EXISTS pomodoro_log (
   day         TEXT NOT NULL,           -- 'YYYY-MM-DD'(配置时区,统计用)
   finished_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS weather_users (
+  owner              TEXT PRIMARY KEY,  -- 'qq:<user_id>'
+  city               TEXT DEFAULT '',   -- 城市名,空=用全局 WEATHER_CITY
+  notify_time        TEXT,              -- 'HH:MM' 个人推送时间,空=用全局
+  enabled            INTEGER DEFAULT 1, -- 0 = 已关闭天气推送
+  last_weather_remind TEXT,             -- 'YYYY-MM-DD' 去重
+  updated_at         TEXT
+);
 `);
 
 const insTodo = db.prepare(`
@@ -319,4 +327,51 @@ export function pomodoroTodayByOwner() {
   const map = {};
   for (const r of rows) map[r.owner] = Number(r.c);
   return map;
+}
+
+/* ================= 天气 ================= */
+
+const getWeatherUserStmt = db.prepare('SELECT * FROM weather_users WHERE owner = ?');
+
+export function getWeatherUser(owner) {
+  return getWeatherUserStmt.get(owner) || null;
+}
+
+/** 更新天气订阅;字段传 null 表示不修改 */
+export function upsertWeatherUser(owner, fields) {
+  const now = new Date().toISOString();
+  const cur = getWeatherUser(owner);
+  if (!cur) {
+    db.prepare(`
+      INSERT INTO weather_users (owner, city, notify_time, enabled, updated_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(owner, fields.city ?? '', fields.notifyTime ?? '', fields.enabled ?? 1, now);
+  } else {
+    db.prepare(`
+      UPDATE weather_users SET
+        city = COALESCE(?, city),
+        notify_time = COALESCE(?, notify_time),
+        enabled = COALESCE(?, enabled),
+        updated_at = ?
+      WHERE owner = ?
+    `).run(fields.city ?? null, fields.notifyTime ?? null, fields.enabled ?? null, now, owner);
+  }
+  events.emit('change');
+  return getWeatherUser(owner);
+}
+
+export function setWeatherReminded(owner, day) {
+  const cur = getWeatherUser(owner);
+  if (cur) {
+    db.prepare('UPDATE weather_users SET last_weather_remind = ? WHERE owner = ?').run(day, owner);
+  } else {
+    db.prepare(`
+      INSERT INTO weather_users (owner, city, notify_time, enabled, last_weather_remind, updated_at)
+      VALUES (?, '', '', 1, ?, ?)
+    `).run(owner, day, new Date().toISOString());
+  }
+}
+
+export function listWeatherUsers() {
+  return db.prepare('SELECT * FROM weather_users ORDER BY updated_at DESC').all();
 }

@@ -376,15 +376,16 @@ async function loadSchedule() {
   try {
     const res = await fetch('/api/schedule');
     const data = await res.json();
-    renderSchedule(data.users || []);
+    renderSchedule(data.users || [], data.weather);
   } catch {}
 }
 
-function renderSchedule(users) {
+function renderSchedule(users, weather) {
   const box = $('#scheduleView');
   box.innerHTML = '';
   if (!users.length) {
-    box.appendChild(el('div', 'card pre', '还没有学生提交课表。\n让学生给机器人私聊发送课表即可,例如:\n\n课表\n周一 08:00-09:40 高等数学 @一教101\n周一 10:00-11:40 大学英语 1-16周\n周二 14:00-15:40 物理实验 双周\n\n每天 21:00 机器人会私聊提醒学生第二天的课程。'));
+    const w = weather?.city ? `\n管理员已配置天气推送:${weather.city} 每天 ${weather.notifyTime}` : '';
+    box.appendChild(el('div', 'card pre', `还没有学生提交课表。\n让学生给机器人私聊发送课表即可,例如:\n\n课表\n周一 08:00-09:40 高等数学 @一教101\n周一 10:00-11:40 大学英语 1-16周\n周二 14:00-15:40 物理实验 双周\n\n每天 21:00 机器人会私聊提醒学生第二天的课程。${w}`));
     return;
   }
   for (const u of users) {

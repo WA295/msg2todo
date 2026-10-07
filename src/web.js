@@ -103,7 +103,7 @@ export function startWeb() {
         };
       })
       .filter((u) => u.items.length || u.semester_start || u.push_kind);
-    res.json({ users });
+    res.json({ users, weather: { city: config.weather.city, notifyTime: config.weather.notifyTime } });
   });
 
   // 清空某个学生的课表

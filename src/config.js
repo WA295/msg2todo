@@ -78,6 +78,15 @@ export const config = {
       ? process.env.SCHEDULE_SEMESTER_START
       : '',
   },
+
+  weather: {
+    // 全局默认城市(如 沈阳);学生也可私聊「设置天气 城市」单独设置
+    city: (process.env.WEATHER_CITY || '').trim(),
+    // 每天推送天气的时间(HH:MM)
+    notifyTime: /^\d{1,2}:\d{2}$/.test(process.env.WEATHER_NOTIFY_TIME || '')
+      ? process.env.WEATHER_NOTIFY_TIME
+      : '07:00',
+  },
 };
 
 /** 当前时间(带星期与 UTC 偏移),用于喂给 LLM 作为参考 */

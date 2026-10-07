@@ -6,6 +6,7 @@ import { formatDue } from './time.js';
 import { events } from './events.js';
 import { handleScheduleCommand } from './schedule.js';
 import { handlePomodoroCommand } from './pomodoro.js';
+import { handleWeatherCommand } from './weather.js';
 
 /**
  * 统一的消息处理管线
@@ -36,6 +37,9 @@ export async function handleIncoming(msg) {
 
   // 番茄钟指令(「番茄 25」/「番茄统计」等)
   if (await handlePomodoroCommand(msg)) return null;
+
+  // 天气指令(「天气」/「设置天气 沈阳」等)
+  if (await handleWeatherCommand(msg)) return null;
 
   // 关键词预过滤
   const kw = config.todo.keywords;
