@@ -617,9 +617,53 @@ async function loadSchedule() {
 function renderSchedule(users, weather) {
   const box = $('#scheduleView');
   box.innerHTML = '';
+
+  // 上传课表文件导入(iOS/安卓/电脑通用)
+  const up = el('div', 'card');
+  up.appendChild(el('div', 'h2', '📥 导入课表文件(教务系统导出的 xlsx)'));
+  const row = el('div', 'toolbar');
+  const ownerInp = el('input');
+  ownerInp.className = 'search';
+  ownerInp.placeholder = '导入到哪个 QQ 号(如 1487138742)';
+  ownerInp.value = localStorage.getItem('importOwner') || '1487138742';
+  const fileInp = el('input');
+  fileInp.type = 'file';
+  fileInp.accept = '.xlsx,.xls';
+  fileInp.style.display = 'none';
+  const pick = el('button', 'btn', '选择文件');
+  pick.onclick = () => fileInp.click();
+  fileInp.onchange = async () => {
+    const f = fileInp.files[0];
+    if (!f) return;
+    localStorage.setItem('importOwner', ownerInp.value.trim());
+    pick.textContent = '导入中…';
+    pick.disabled = true;
+    try {
+      const buf = await f.arrayBuffer();
+      const res = await fetch(`/api/schedule/import?owner=qq:${encodeURIComponent(ownerInp.value.trim())}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: buf,
+      });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok) { alert(`✅ 导入成功,共 ${d.count} 节课`); loadSchedule(); }
+      else alert(`❌ 导入失败:${d.error || res.status}`);
+    } catch (e) {
+      alert('导入出错:' + e.message);
+    }
+    pick.textContent = '选择文件';
+    pick.disabled = false;
+    fileInp.value = '';
+  };
+  row.appendChild(ownerInp);
+  row.appendChild(pick);
+  row.appendChild(el('span', 'live', '支持东北大学教务导出的 xlsx,自动识别节次/周次/教室'));
+  up.appendChild(row);
+  box.appendChild(up);
+
   if (!users.length) {
     const w = weather?.city ? `\n管理员已配置天气推送:${weather.city} 每天 ${weather.notifyTime}` : '';
-    box.appendChild(el('div', 'card pre', `还没有学生提交课表。\n让学生给机器人私聊发送课表即可,例如:\n\n课表\n周一 08:00-09:40 高等数学 @一教101\n周一 10:00-11:40 大学英语 1-16周\n周二 14:00-15:40 物理实验 双周\n\n每天 21:00 机器人会私聊提醒学生第二天的课程。${w}`));
+    box.appendChild(el('div', 'card pre', `还没有学生提交课表。\n让学生给机器人私聊发送课表,或在上方直接上传课表文件。\n\n课表\n周一 08:00-09:40 高等数学 @一教101\n周一 10:00-11:40 大学英语 1-16周\n周二 14:00-15:40 物理实验 双周\n\n每天 21:00 机器人会私聊提醒学生第二天的课程。${w}`));
     return;
   }
   for (const u of users) {
