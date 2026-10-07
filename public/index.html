@@ -236,6 +236,7 @@
   </div>
 </div>
 
+<script src="app-config.js"></script>
 <script>
 const $ = (s) => document.querySelector(s);
 const PRIO = { high: ['高', 'b-high'], medium: ['中', 'b-mid'], low: ['低', 'b-low'] };
@@ -243,18 +244,22 @@ const SRC = { wechat: ['微信', 'b-wx'], qq: ['QQ', 'b-qq'], manual: ['手动',
 let filter = 'open';
 let q = '';
 
-/* ---- 服务器地址(手机 App 可配置) ---- */
-const BASE = (localStorage.getItem('server') || '').replace(/\/+$/, '');
+/* ---- 服务器地址:手动配置 > 打包内置 > 当前页面自身 ---- */
+const inApp = location.hostname === 'localhost' || location.protocol === 'capacitor:';
+let BASE = (localStorage.getItem('server') || '').replace(/\/+$/, '');
+if (!BASE && inApp) {
+  BASE = (window.APP_CONFIG?.server || '').replace(/\/+$/, '');
+}
 const rawFetch = window.fetch;
 window.fetch = (input, init) => {
   const url = typeof input === 'string' && input.startsWith('/') ? BASE + input : input;
   return rawFetch(url, init);
 };
 
-// 服务器设置弹窗
+// 服务器设置弹窗(仅当没有可用地址时自动弹出)
 $('#setBtn').onclick = () => {
   $('#setModal').style.display = 'flex';
-  $('#setServer').value = localStorage.getItem('server') || '';
+  $('#setServer').value = localStorage.getItem('server') || BASE || '';
 };
 $('#setClose').onclick = () => { $('#setModal').style.display = 'none'; };
 $('#setSave').onclick = () => {
@@ -263,8 +268,7 @@ $('#setSave').onclick = () => {
   else localStorage.removeItem('server');
   location.reload();
 };
-// App(电容壳)首次启动且未配置服务器 → 自动弹出设置
-if (location.protocol === 'capacitor:' && !BASE) $('#setModal').style.display = 'flex';
+if (inApp && !BASE) $('#setModal').style.display = 'flex';
 
 async function load() {
   const res = await fetch(`/api/todos?status=${filter}&q=${encodeURIComponent(q)}`);

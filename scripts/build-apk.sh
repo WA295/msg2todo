@@ -11,6 +11,14 @@ if [ ! -d "$ANDROID_HOME/platform-tools" ]; then
 fi
 
 echo "═══ 打包安卓 APK ═══"
+
+# 可选:自定义内置服务器地址,如 SERVER=http://1.2.3.4:8080 bash scripts/build-apk.sh
+if [ -n "$SERVER" ]; then
+  echo "内置服务器地址: $SERVER"
+  echo "/** 打包时内置的服务器地址(安卓 App 打开即用;改了这里要重新 build:apk) */" > public/app-config.js
+  echo "window.APP_CONFIG = { server: '${SERVER%/}' };" >> public/app-config.js
+fi
+
 npx cap sync android
 cd android
 ./gradlew assembleDebug
