@@ -98,8 +98,8 @@ function onPayload(ws, state, data) {
   const senderId = String(data.sender?.user_id ?? data.user_id ?? '');
   if (state.selfId !== null && senderId === String(state.selfId)) return; // 自己的消息
 
-  const { text, mentioned } = parseMessage(data.message, state.selfId);
-  if (!text) return;
+  const { text, mentioned, files } = parseMessage(data.message, state.selfId);
+  if (!text && !files.length) return;
 
   const isGroup = messageType === 'group';
   const senderName = data.sender?.card || data.sender?.nickname || senderId;
@@ -116,6 +116,7 @@ function onPayload(ws, state, data) {
     chatName,
     sender: senderName,
     text,
+    files,
     isGroup,
     mentioned,
     reply: (t) => sendAction(ws, state, 'send_msg', {
@@ -129,16 +130,18 @@ function onPayload(ws, state, data) {
 function parseMessage(message, selfId) {
   let text = '';
   let mentioned = false;
+  const files = [];
   if (Array.isArray(message)) {
     for (const seg of message) {
       if (seg?.type === 'text') text += seg.data?.text ?? '';
       if (seg?.type === 'at' && String(seg.data?.qq) === String(selfId)) mentioned = true;
+      if (seg?.type === 'file') files.push({ name: seg.data?.name || seg.data?.file || '', url: seg.data?.url || '' });
     }
   } else if (typeof message === 'string') {
     if (selfId !== null) mentioned = message.includes(`[CQ:at,qq=${selfId}]`);
     text = message.replace(/\[CQ:[^\]]+\]/g, '').trim();
   }
-  return { text: text.trim(), mentioned };
+  return { text: text.trim(), mentioned, files };
 }
 
 function sendAction(ws, state, action, params) {

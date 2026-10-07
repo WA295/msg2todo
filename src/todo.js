@@ -7,6 +7,9 @@ import { events } from './events.js';
 import { handleScheduleCommand } from './schedule.js';
 import { handlePomodoroCommand } from './pomodoro.js';
 import { handleWeatherCommand } from './weather.js';
+import { handleCountdownCommand } from './countdown.js';
+import { handleSleepCommand } from './sleep.js';
+import { handleExcelImport } from './excelImport.js';
 
 /**
  * 统一的消息处理管线
@@ -22,7 +25,8 @@ import { handleWeatherCommand } from './weather.js';
  */
 export async function handleIncoming(msg) {
   const text = (msg.text || '').trim();
-  if (!text) return null;
+  const hasFiles = (msg.files || []).length > 0;
+  if (!text && !hasFiles) return null;
 
   addMessage({
     platform: msg.platform,
@@ -32,8 +36,20 @@ export async function handleIncoming(msg) {
     text,
   });
 
+  // Excel 课表文件导入(优先级最高,发 xlsx 文件即导入)
+  if (hasFiles) {
+    if (await handleExcelImport(msg)) return null;
+  }
+  if (!text) return null;
+
   // 课表指令优先处理(「课表/我的课表/明天什么课」等),不进入待办管线
   if (await handleScheduleCommand(msg)) return null;
+
+  // 倒计时指令(「倒计时 12月12日 四六级」等)
+  if (await handleCountdownCommand(msg)) return null;
+
+  // 睡觉提醒指令(「睡觉提醒 23:00」等)
+  if (await handleSleepCommand(msg)) return null;
 
   // 番茄钟指令(「番茄 25」/「番茄统计」等)
   if (await handlePomodoroCommand(msg)) return null;

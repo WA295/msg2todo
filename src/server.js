@@ -6,6 +6,10 @@ import { startNotifier, stopNotifier } from './notify.js';
 import { startScheduleReminder, stopScheduleReminder } from './scheduleReminder.js';
 import { startPomodoroChecker, stopPomodoroChecker } from './pomodoro.js';
 import { startWeatherReminder, stopWeatherReminder } from './weather.js';
+import { startCountdownReminder, stopCountdownReminder } from './countdown.js';
+import { startClassReminder, stopClassReminder } from './classReminder.js';
+import { startWeeklyReview, stopWeeklyReview } from './weeklyReview.js';
+import { startSleepReminder, stopSleepReminder } from './sleep.js';
 
 /** 启动全部服务,返回句柄(供停止时使用)。CLI 与桌面版共用。 */
 export function startAll() {
@@ -19,6 +23,10 @@ export function startAll() {
   startScheduleReminder();
   startPomodoroChecker();
   startWeatherReminder();
+  startCountdownReminder();
+  startClassReminder();
+  startWeeklyReview();
+  startSleepReminder();
   return handles;
 }
 
@@ -28,6 +36,10 @@ export async function stopAll(handles) {
   stopScheduleReminder();
   stopPomodoroChecker();
   stopWeatherReminder();
+  stopCountdownReminder();
+  stopClassReminder();
+  stopWeeklyReview();
+  stopSleepReminder();
   if (handles?.wechat?.stop) {
     try { await handles.wechat.stop(); } catch (e) { console.warn('[停止] 微信:', e.message); }
   }

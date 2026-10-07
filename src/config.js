@@ -87,6 +87,19 @@ export const config = {
       ? process.env.WEATHER_NOTIFY_TIME
       : '07:00',
   },
+
+  // 上课前提醒(分钟)
+  classRemindMinutes: Number(process.env.CLASS_REMIND_MINUTES || 10),
+
+  // 倒计时每日提醒时间
+  countdownNotifyTime: /^\d{1,2}:\d{2}$/.test(process.env.COUNTDOWN_NOTIFY_TIME || '')
+    ? process.env.COUNTDOWN_NOTIFY_TIME
+    : '08:00',
+
+  // 每周回顾(周日推送)
+  weeklyReviewTime: /^\d{1,2}:\d{2}$/.test(process.env.WEEKLY_REVIEW_TIME || '')
+    ? process.env.WEEKLY_REVIEW_TIME
+    : '22:00',
 };
 
 /** 当前时间(带星期与 UTC 偏移),用于喂给 LLM 作为参考 */

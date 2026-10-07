@@ -85,3 +85,25 @@ export function weekOf(parts, semesterStart) {
   const diff = Math.round((Date.UTC(cm.y, cm.mo - 1, cm.d) - Date.UTC(sm.y, sm.mo - 1, sm.d)) / 86400000);
   return Math.floor(diff / 7) + 1;
 }
+
+/** 距目标日期还有多少天(负数=已过) */
+export function daysUntil(targetStr, fromParts) {
+  const m = String(targetStr || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const p = fromParts || partsOf(new Date());
+  return Math.round(
+    (Date.UTC(+m[1], +m[2] - 1, +m[3]) - Date.UTC(p.y, p.mo - 1, p.d)) / 86400000
+  );
+}
+
+/** 某个日期所在周的周一 'YYYY-MM-DD' */
+export function weekMondayStr(parts) {
+  const p = parts || partsOf(new Date());
+  const m = mondayOf(p.y, p.mo, p.d);
+  return `${m.y}-${String(m.mo).padStart(2, '0')}-${String(m.d).padStart(2, '0')}`;
+}
+
+/** parts 转 'YYYY-MM-DD' */
+export function partsToStr(p) {
+  return `${p.y}-${String(p.mo).padStart(2, '0')}-${String(p.d).padStart(2, '0')}`;
+}

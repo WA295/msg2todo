@@ -83,6 +83,19 @@ CREATE TABLE IF NOT EXISTS weather_users (
   last_weather_remind TEXT,             -- 'YYYY-MM-DD' 去重
   updated_at         TEXT
 );
+CREATE TABLE IF NOT EXISTS countdowns (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  owner      TEXT NOT NULL,             -- 'qq:<user_id>'
+  title      TEXT NOT NULL,
+  target     TEXT NOT NULL,             -- 'YYYY-MM-DD'
+  created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS review_log (
+  owner    TEXT NOT NULL,
+  week     TEXT NOT NULL,               -- 周一的 'YYYY-MM-DD'(去重)
+  sent_at  TEXT NOT NULL,
+  PRIMARY KEY (owner, week)
+);
 `);
 
 const insTodo = db.prepare(`
@@ -98,6 +111,27 @@ if (!todoCols.includes('notified_at')) {
 }
 if (!todoCols.includes('notified_adv_at')) {
   db.exec('ALTER TABLE todos ADD COLUMN notified_adv_at TEXT');
+}
+
+// 迁移:schedule_users 扩展(上课前提醒/睡觉提醒/倒计时去重)
+const suCols = db.prepare('PRAGMA table_info(schedule_users)').all().map((c) => c.name);
+if (!suCols.includes('class_remind')) {
+  db.exec('ALTER TABLE schedule_users ADD COLUMN class_remind INTEGER DEFAULT 1');
+}
+if (!suCols.includes('sleep_time')) {
+  db.exec('ALTER TABLE schedule_users ADD COLUMN sleep_time TEXT DEFAULT \'\'');
+}
+if (!suCols.includes('last_sleep_remind')) {
+  db.exec('ALTER TABLE schedule_users ADD COLUMN last_sleep_remind TEXT');
+}
+if (!suCols.includes('last_countdown_remind')) {
+  db.exec('ALTER TABLE schedule_users ADD COLUMN last_countdown_remind TEXT');
+}
+
+// 迁移:schedule_items 上课前提醒去重
+const siCols = db.prepare('PRAGMA table_info(schedule_items)').all().map((c) => c.name);
+if (!siCols.includes('reminded_day')) {
+  db.exec('ALTER TABLE schedule_items ADD COLUMN reminded_day TEXT');
 }
 
 export function addTodo({ title, dueAt = null, priority = 'medium', notes = '', source = 'manual', chatName = '', senderName = '' }) {
@@ -177,8 +211,8 @@ export function upsertScheduleUser(owner, fields) {
   const cur = getScheduleUser(owner);
   if (!cur) {
     db.prepare(`
-      INSERT INTO schedule_users (owner, name, semester_start, notify_time, push_kind, push_key, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO schedule_users (owner, name, semester_start, notify_time, push_kind, push_key, class_remind, sleep_time, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       owner,
       fields.name || '',
@@ -186,6 +220,8 @@ export function upsertScheduleUser(owner, fields) {
       fields.notifyTime ?? '',
       fields.pushKind ?? '',
       fields.pushKey ?? '',
+      fields.classRemind ?? 1,
+      fields.sleepTime ?? '',
       now
     );
   } else {
@@ -196,6 +232,8 @@ export function upsertScheduleUser(owner, fields) {
         notify_time = COALESCE(?, notify_time),
         push_kind = COALESCE(?, push_kind),
         push_key = COALESCE(?, push_key),
+        class_remind = COALESCE(?, class_remind),
+        sleep_time = COALESCE(?, sleep_time),
         updated_at = ?
       WHERE owner = ?
     `).run(
@@ -204,6 +242,8 @@ export function upsertScheduleUser(owner, fields) {
       fields.notifyTime ?? null,
       fields.pushKind ?? null,
       fields.pushKey ?? null,
+      fields.classRemind ?? null,
+      fields.sleepTime ?? null,
       now,
       owner
     );
@@ -374,4 +414,45 @@ export function setWeatherReminded(owner, day) {
 
 export function listWeatherUsers() {
   return db.prepare('SELECT * FROM weather_users ORDER BY updated_at DESC').all();
+}
+
+/* ================= 倒计时 ================= */
+
+export function addCountdown(owner, title, target) {
+  const r = db.prepare('INSERT INTO countdowns (owner, title, target, created_at) VALUES (?, ?, ?, ?)')
+    .run(owner, title, target, new Date().toISOString());
+  events.emit('change');
+  return Number(r.lastInsertRowid);
+}
+
+export function listCountdowns(owner) {
+  return db.prepare('SELECT * FROM countdowns WHERE owner = ? ORDER BY target, id').all(owner)
+    .map((r) => ({ ...r, id: Number(r.id) }));
+}
+
+export function deleteCountdown(id) {
+  const r = db.prepare('DELETE FROM countdowns WHERE id = ?').run(id);
+  if (r.changes > 0) events.emit('change');
+  return r.changes > 0;
+}
+
+export function setScheduleUserReminded(owner, field, day) {
+  db.prepare(`UPDATE schedule_users SET ${field} = ? WHERE owner = ?`).run(day, owner);
+}
+
+/* ================= 每周回顾 ================= */
+
+export function getReviewLog(owner, week) {
+  return db.prepare('SELECT * FROM review_log WHERE owner = ? AND week = ?').get(owner, week) || null;
+}
+
+export function setReviewLog(owner, week) {
+  db.prepare('INSERT OR REPLACE INTO review_log (owner, week, sent_at) VALUES (?, ?, ?)')
+    .run(owner, week, new Date().toISOString());
+}
+
+/* ================= 上课前提醒 ================= */
+
+export function setClassReminded(id, day) {
+  db.prepare('UPDATE schedule_items SET reminded_day = ? WHERE id = ?').run(day, id);
 }
