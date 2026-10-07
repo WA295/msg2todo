@@ -166,6 +166,7 @@
     <div class="head-right">
       <div class="conns" id="conns"></div>
       <button class="mini-btn" id="wxBtn">微信登录</button>
+      <button class="mini-btn" id="setBtn">⚙️ 服务器</button>
       <div class="stats" id="stats"></div>
     </div>
   </header>
@@ -222,12 +223,48 @@
   </div>
 </div>
 
+<div class="modal" id="setModal" style="display:none">
+  <div class="modal-card" style="text-align:left; min-width:min(340px, 90vw)">
+    <h3 style="text-align:center">⚙️ 服务器设置</h3>
+    <div class="sub" style="text-align:center">填写 msg2todo 服务所在地址(手机 App 必填)</div>
+    <input id="setServer" placeholder="如 http://192.168.1.100:8080" style="width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:8px; font-size:14px; outline:none" />
+    <div style="display:flex; gap:10px; margin-top:14px">
+      <button class="btn" id="setSave" style="flex:1">保存并刷新</button>
+      <button class="mini-btn" id="setClose" style="flex:0">取消</button>
+    </div>
+    <div class="sub" style="margin-top:12px">留空 = 使用打开页面自身的地址(PWA 模式)。手机 App 与电脑需同一网络,或填云端服务器地址。</div>
+  </div>
+</div>
+
 <script>
 const $ = (s) => document.querySelector(s);
 const PRIO = { high: ['高', 'b-high'], medium: ['中', 'b-mid'], low: ['低', 'b-low'] };
 const SRC = { wechat: ['微信', 'b-wx'], qq: ['QQ', 'b-qq'], manual: ['手动', 'b-manual'] };
 let filter = 'open';
 let q = '';
+
+/* ---- 服务器地址(手机 App 可配置) ---- */
+const BASE = (localStorage.getItem('server') || '').replace(/\/+$/, '');
+const rawFetch = window.fetch;
+window.fetch = (input, init) => {
+  const url = typeof input === 'string' && input.startsWith('/') ? BASE + input : input;
+  return rawFetch(url, init);
+};
+
+// 服务器设置弹窗
+$('#setBtn').onclick = () => {
+  $('#setModal').style.display = 'flex';
+  $('#setServer').value = localStorage.getItem('server') || '';
+};
+$('#setClose').onclick = () => { $('#setModal').style.display = 'none'; };
+$('#setSave').onclick = () => {
+  const v = $('#setServer').value.trim().replace(/\/+$/, '');
+  if (v) localStorage.setItem('server', v);
+  else localStorage.removeItem('server');
+  location.reload();
+};
+// App(电容壳)首次启动且未配置服务器 → 自动弹出设置
+if (location.protocol === 'capacitor:' && !BASE) $('#setModal').style.display = 'flex';
 
 async function load() {
   const res = await fetch(`/api/todos?status=${filter}&q=${encodeURIComponent(q)}`);
@@ -328,7 +365,7 @@ $('#addForm').onsubmit = async (e) => {
 
 // SSE 实时更新(浏览器断线自动重连),另加 30s 兜底轮询
 function connectSSE() {
-  const es = new EventSource('/api/events');
+  const es = new EventSource(BASE + '/api/events');
   es.addEventListener('update', () => { load(); loadSchedule(); loadHome(); });
   es.addEventListener('status', (e) => renderStatus(JSON.parse(e.data)));
   es.addEventListener('qr', (e) => {
@@ -367,7 +404,7 @@ function renderStatus(s) {
 
 function showQr() {
   $('#qrModal').style.display = 'flex';
-  $('#qrImg').src = `/api/qr.svg?t=${Date.now()}`;
+  $('#qrImg').src = `${BASE}/api/qr.svg?t=${Date.now()}`;
   $('#qrHint').textContent = '扫描成功后自动关闭';
 }
 function hideQr() {

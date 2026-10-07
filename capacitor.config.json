@@ -1,0 +1,8 @@
+{
+  "appId": "com.msg2todo.app",
+  "appName": "校园生活管家",
+  "webDir": "public",
+  "server": {
+    "androidScheme": "http"
+  }
+}

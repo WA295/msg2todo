@@ -51,6 +51,15 @@ export function startWeb() {
   const app = express();
   app.use(express.json());
 
+  // CORS:允许手机 App(电容壳,跨域来源)访问
+  app.use((req, res, next) => {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    if (req.method === 'OPTIONS') return res.sendStatus(204);
+    next();
+  });
+
   // 待办列表
   app.get('/api/todos', (req, res) => {
     const status = ['open', 'done'].includes(req.query.status) ? req.query.status : 'all';
