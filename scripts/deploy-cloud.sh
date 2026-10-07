@@ -64,7 +64,8 @@ Wants=network-online.target
 
 [Service]
 WorkingDirectory=$APP_DIR
-ExecStart=/usr/local/bin/node $APP_DIR/src/index.js
+# --dns-result-order=ipv4first:云服务器常无 IPv6,强制 IPv4 避免 fetch 超时
+ExecStart=/usr/local/bin/node --dns-result-order=ipv4first $APP_DIR/src/index.js
 Restart=always
 RestartSec=10
 
