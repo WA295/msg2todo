@@ -3,11 +3,13 @@ import express from 'express';
 import QRCode from 'qrcode';
 import { config } from './config.js';
 import {
-  listTodos, toggleTodo, deleteTodo, addTodo, stats,
+  db, listTodos, toggleTodo, deleteTodo, addTodo, stats,
   listScheduleUsers, listScheduleItems, clearSchedule, deleteScheduleItem,
   pomodoroTodayByOwner,
 } from './db.js';
-import { parseLocalInput, partsOf, weekOf } from './time.js';
+import { parseLocalInput, partsOf, weekOf, zonedDate, partsToStr, daysUntil } from './time.js';
+import { buildDayText } from './schedule.js';
+import { getWeather, formatWeather } from './weather.js';
 import { events, liveStatus } from './events.js';
 
 const sseClients = new Set();
@@ -87,6 +89,62 @@ export function startWeb() {
   // 运行状态快照
   app.get('/api/status', (req, res) => {
     res.json({ ...liveStatus, llm: config.llm.enabled, wechatEnabled: config.wechat.enabled });
+  });
+
+  // 总览:看板首页聚合数据(天气/明日课程/倒计时/番茄/待办/自动化时间表)
+  app.get('/api/overview', async (req, res) => {
+    const nowP = partsOf(new Date());
+    const todayStr = partsToStr(nowP);
+    const tomP = partsOf(new Date(zonedDate(nowP.y, nowP.mo, nowP.d, 0, 0).getTime() + 86400000));
+    const pomo = pomodoroTodayByOwner();
+    const running = db.prepare("SELECT * FROM pomodoro WHERE status = 'running'").all().map((r) => ({ ...r, id: Number(r.id) }));
+
+    const users = listScheduleUsers().map((u) => {
+      const sem = u.semester_start || config.schedule.semesterStart;
+      const items = listScheduleItems(u.owner);
+      return {
+        ...u,
+        itemsCount: items.length,
+        tomorrow: buildDayText(items, tomP, sem).visible,
+        today: buildDayText(items, nowP, sem).visible,
+        pomodoroToday: pomo[u.owner] || 0,
+      };
+    });
+
+    const countdowns = db.prepare('SELECT c.*, u.name AS user_name FROM countdowns c LEFT JOIN schedule_users u ON u.owner = c.owner ORDER BY c.target').all()
+      .map((c) => ({ ...c, id: Number(c.id), daysLeft: daysUntil(c.target, nowP) }));
+
+    const openDue = db.prepare("SELECT * FROM todos WHERE status = 'open' AND due_at IS NOT NULL").all()
+      .filter((t) => partsToStr(partsOf(new Date(t.due_at))) <= todayStr)
+      .slice(0, 8)
+      .map((t) => ({ ...t, id: Number(t.id) }));
+
+    let weather = null;
+    if (config.weather.city) {
+      try {
+        weather = formatWeather(await getWeather(config.weather.city));
+      } catch (e) {
+        console.warn('[看板] 天气获取失败:', e.message);
+      }
+    }
+
+    res.json({
+      stats: stats(),
+      users,
+      countdowns,
+      runningPomodoro: running,
+      dueTodos: openDue,
+      weather,
+      status: { ...liveStatus, llm: config.llm.enabled, bark: Boolean(config.barkUrl), pushdeer: Boolean(config.pushDeerKey) },
+      scheduleTimes: {
+        weather: config.weather.city ? config.weather.notifyTime : null,
+        countdown: config.countdownNotifyTime,
+        schedule: config.schedule.notifyTime,
+        weeklyReview: config.weeklyReviewTime,
+        classRemind: config.classRemindMinutes,
+        sleep: users.map((u) => ({ name: u.name || u.owner, time: u.sleep_time })).filter((x) => x.time),
+      },
+    });
   });
 
   // 课表:全部学生及其课程(看板「课表」页)

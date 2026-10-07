@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>待办看板 · msg2todo</title>
+<title>校园生活管家 · msg2todo</title>
 <meta name="theme-color" content="#4f6ef7">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -81,6 +81,39 @@
   .vtabs { display: flex; gap: 8px; margin-bottom: 16px; }
   .vtab { border: 1px solid var(--line); background: #fff; padding: 9px 20px; border-radius: 10px; cursor: pointer; font-size: 14px; color: var(--muted); }
   .vtab.on { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; box-shadow: 0 2px 8px rgba(79,110,247,.25); }
+
+  /* 总览首页 */
+  .h2 { font-size: 13px; font-weight: 600; color: var(--muted); margin: 4px 2px 10px; letter-spacing: .5px; }
+  .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+  .stat-card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 10px; text-align: center; }
+  .stat-card .num { font-size: 22px; font-weight: 700; color: var(--accent); }
+  .stat-card .lbl { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
+  .feat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+  .feat { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 14px 12px; cursor: pointer; transition: all .12s; }
+  .feat:hover { border-color: var(--accent); transform: translateY(-1px); box-shadow: 0 3px 10px rgba(79,110,247,.12); }
+  .feat .icon { font-size: 24px; }
+  .feat .name { font-size: 14px; font-weight: 600; margin-top: 8px; }
+  .feat .desc { font-size: 11.5px; color: var(--muted); margin-top: 4px; line-height: 1.5; word-break: break-all; }
+  .feat .cmd { font-size: 11px; color: var(--accent); background: var(--accent-soft); border-radius: 6px; padding: 2px 7px; margin-top: 7px; display: inline-block; }
+  .tl { list-style: none; }
+  .tl li { display: flex; align-items: center; gap: 10px; padding: 8px 10px; font-size: 13.5px; border-radius: 8px; }
+  .tl li:nth-child(odd) { background: #f8f9fb; }
+  .tl .t { font-weight: 600; color: var(--accent); min-width: 96px; }
+  .weather-box { background: linear-gradient(135deg, #4f6ef7 0%, #6a8bff 100%); color: #fff; border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+  .weather-box .w-lines { font-size: 13.5px; line-height: 1.9; opacity: .96; white-space: pre-line; }
+  .tom-cls { display: flex; align-items: center; gap: 10px; padding: 7px 10px; font-size: 13.5px; border-radius: 8px; }
+  .tom-cls:nth-child(odd) { background: #f8f9fb; }
+  .tom-cls .tm { font-weight: 700; color: var(--accent); white-space: nowrap; }
+  .cd-item { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 10px; font-size: 13.5px; border-radius: 8px; }
+  .cd-item:nth-child(odd) { background: #f8f9fb; }
+  .cd-item .d { font-weight: 700; color: var(--high); white-space: nowrap; }
+  .cheat { font-size: 12.5px; line-height: 1.9; color: var(--text); }
+  .cheat code { background: var(--accent-soft); color: var(--accent); padding: 1px 6px; border-radius: 5px; font-size: 12px; }
+  @media (max-width: 640px) {
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+    .feat-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
   .s-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
   .s-head .who { font-size: 15px; }
   .s-head .sub { font-size: 12px; color: var(--muted); }
@@ -129,7 +162,7 @@
 <body>
 <div class="wrap">
   <header>
-    <h1><span class="dot">●</span> 待办看板</h1>
+    <h1><span class="dot">●</span> 校园生活管家</h1>
     <div class="head-right">
       <div class="conns" id="conns"></div>
       <button class="mini-btn" id="wxBtn">微信登录</button>
@@ -138,11 +171,14 @@
   </header>
 
   <div class="vtabs">
-    <button class="vtab on" data-v="todo">📝 待办看板</button>
+    <button class="vtab on" data-v="home">🏠 总览</button>
+    <button class="vtab" data-v="todo">📝 待办</button>
     <button class="vtab" data-v="sched">📚 课表</button>
   </div>
 
-  <div id="todoView">
+  <div id="homeView"></div>
+
+  <div id="todoView" style="display:none">
     <div class="card">
       <div class="toolbar">
         <div class="tabs">
@@ -293,7 +329,7 @@ $('#addForm').onsubmit = async (e) => {
 // SSE 实时更新(浏览器断线自动重连),另加 30s 兜底轮询
 function connectSSE() {
   const es = new EventSource('/api/events');
-  es.addEventListener('update', () => { load(); loadSchedule(); });
+  es.addEventListener('update', () => { load(); loadSchedule(); loadHome(); });
   es.addEventListener('status', (e) => renderStatus(JSON.parse(e.data)));
   es.addEventListener('qr', (e) => {
     const d = JSON.parse(e.data);
@@ -353,9 +389,138 @@ $('#wxBtn').onclick = () => {
 };
 
 connectSSE();
-setInterval(load, 30000);
+setInterval(() => { load(); loadHome(); }, 30000);
 fetch('/api/status').then((r) => r.json()).then(renderStatus);
 load();
+
+/* ================= 总览首页 ================= */
+const VWD = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
+const vfmtMin = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+
+async function loadHome() {
+  try {
+    const res = await fetch('/api/overview');
+    const d = await res.json();
+    renderHome(d);
+  } catch {}
+}
+
+function vcard(cls, ...children) {
+  const n = el('div', cls);
+  for (const c of children) if (c) n.appendChild(c);
+  return n;
+}
+
+function renderHome(d) {
+  const box = $('#homeView');
+  box.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  if (!d) { box.appendChild(el('div', 'card', '加载中…')); return; }
+
+  // 天气
+  if (d.weather) {
+    const w = el('div', 'weather-box');
+    w.appendChild(el('div', 'w-lines', d.weather));
+    frag.appendChild(w);
+  }
+
+  // 统计行
+  const srow = el('div', 'stats-row');
+  const st = (num, lbl) => {
+    const c = vcard('stat-card', el('div', 'num', String(num)), el('div', 'lbl', lbl));
+    srow.appendChild(c);
+    return c;
+  };
+  st(d.stats.open, '待办未完成');
+  st(d.users.reduce((a, u) => a + u.today.length, 0), '今日课程');
+  st(d.users.reduce((a, u) => a + u.pomodoroToday, 0), '🍅 今日番茄');
+  st(d.countdowns.length, '⏳ 倒计时');
+  frag.appendChild(srow);
+
+  // 明日课程
+  const tcard = el('div', 'card');
+  tcard.appendChild(el('div', 'h2', '🌅 明天课程'));
+  const tomAll = [];
+  d.users.forEach((u) => u.tomorrow.forEach((it) => tomAll.push({ u, it })));
+  tomAll.sort((a, b) => a.it.start_min - b.it.start_min);
+  if (!tomAll.length) {
+    tcard.appendChild(el('div', 'empty', '明天没有课,好好休息~ 🎉'));
+  } else {
+    for (const { u, it } of tomAll) {
+      const row = el('div', 'tom-cls');
+      row.appendChild(el('span', 'tm', vfmtMin(it.start_min)));
+      row.appendChild(el('span', null, `${it.name}${it.location ? ` @${it.location}` : ''}`));
+      row.appendChild(el('span', 's-week', u.name || u.owner));
+      tcard.appendChild(row);
+    }
+  }
+  frag.appendChild(tcard);
+
+  // 倒计时
+  if (d.countdowns.length) {
+    const ccard = el('div', 'card');
+    ccard.appendChild(el('div', 'h2', '⏳ 倒计时'));
+    for (const c of d.countdowns) {
+      const row = el('div', 'cd-item');
+      row.appendChild(el('span', null, c.title));
+      const left = c.daysLeft < 0 ? `已过 ${-c.daysLeft} 天` : c.daysLeft === 0 ? '就是今天!' : `还有 ${c.daysLeft} 天`;
+      row.appendChild(el('span', 'd', left));
+      ccard.appendChild(row);
+    }
+    frag.appendChild(ccard);
+  }
+
+  // 自动化时间表
+  const tcard2 = el('div', 'card');
+  tcard2.appendChild(el('div', 'h2', '🤖 自动化时间表'));
+  const tl = el('ul', 'tl');
+  const rows = [];
+  if (d.scheduleTimes.weather) rows.push(['每日', d.scheduleTimes.weather, '天气推送']);
+  rows.push(['每日', d.scheduleTimes.countdown, '倒计时推送']);
+  rows.push(['课前', `${d.scheduleTimes.classRemind} 分钟`, '上课提醒']);
+  rows.push(['每晚', d.scheduleTimes.schedule, '明天课表提醒']);
+  rows.push(['周日', d.scheduleTimes.weeklyReview, '每周回顾']);
+  for (const s of d.scheduleTimes.sleep) rows.push(['就寝', s.time, `睡觉提醒(${s.name})`]);
+  for (const [t, v, label] of rows) {
+    const li = el('li');
+    li.appendChild(el('span', 't', t));
+    li.appendChild(el('span', null, v));
+    li.appendChild(el('span', null, label));
+    tl.appendChild(li);
+  }
+  tcard2.appendChild(tl);
+  frag.appendChild(tcard2);
+
+  // 功能入口
+  const fcard = el('div', 'card');
+  fcard.appendChild(el('div', 'h2', '🧭 功能入口'));
+  const grid = el('div', 'feat-grid');
+  const feats = [
+    { icon: '📝', name: '待办', desc: '聊天消息自动提取 / 手动添加', cmd: '发消息即可', v: 'todo' },
+    { icon: '📚', name: '课表', desc: '发文本或 xlsx 文件导入,每晚提醒', cmd: '课表 / 发文件', v: 'sched' },
+    { icon: '🍅', name: '番茄钟', desc: '专注计时,到点提醒', cmd: '番茄 25 5 4', v: null },
+    { icon: '🌤', name: '天气', desc: '每日天气+带伞提示', cmd: '设置天气 城市', v: null },
+    { icon: '⏳', name: '倒计时', desc: '考试/放假天数提醒', cmd: '倒计时 12月12日 四六级', v: null },
+    { icon: '📊', name: '每周回顾', desc: '周日自动总结本周', cmd: '自动推送', v: null },
+    { icon: '🌙', name: '睡觉提醒', desc: '到点提醒,早八加提示', cmd: '睡觉提醒 23:00', v: null },
+    { icon: '🔔', name: '手机推送', desc: d.status.bark ? 'Bark 已绑定 ✓' : '未绑定推送', cmd: d.status.bark ? '已推送至手机' : '设置推送 <key>', v: null },
+  ];
+  for (const f of feats) {
+    const c = vcard('feat', el('div', 'icon', f.icon), el('div', 'name', f.name), el('div', 'desc', f.desc), el('span', 'cmd', f.cmd));
+    if (f.v) c.onclick = () => { document.querySelector(`.vtab[data-v="${f.v}"]`).click(); };
+    grid.appendChild(c);
+  }
+  fcard.appendChild(grid);
+  frag.appendChild(fcard);
+
+  // 指令速查
+  const cheat = el('div', 'card');
+  cheat.appendChild(el('div', 'h2', '💬 指令速查(私聊机器人)'));
+  cheat.appendChild(el('div', 'cheat', `<code>课表帮助</code> <code>我的课表</code> <code>明天什么课</code> <code>番茄 25</code> <code>天气</code> <code>设置天气 沈阳</code> <code>倒计时 12月12日 四六级</code> <code>睡觉提醒 23:00</code> <code>设置推送 &lt;key&gt;</code> <code>开学日期 2026-02-23</code>`));
+  frag.appendChild(cheat);
+
+  box.appendChild(frag);
+}
 
 /* ================= 课表视图 ================= */
 const WD = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
@@ -366,11 +531,15 @@ document.querySelectorAll('.vtab').forEach((btn) => {
     document.querySelectorAll('.vtab').forEach((b) => b.classList.remove('on'));
     btn.classList.add('on');
     const v = btn.dataset.v;
+    $('#homeView').style.display = v === 'home' ? '' : 'none';
     $('#todoView').style.display = v === 'todo' ? '' : 'none';
     $('#scheduleView').style.display = v === 'sched' ? '' : 'none';
+    if (v === 'home') loadHome();
     if (v === 'sched') loadSchedule();
   };
 });
+
+loadHome();
 
 async function loadSchedule() {
   try {
