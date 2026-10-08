@@ -118,6 +118,7 @@ CREATE TABLE IF NOT EXISTS packages (
   owner      TEXT NOT NULL,
   code       TEXT NOT NULL,              -- 取件码
   location   TEXT DEFAULT '',            -- 驿站/柜子
+  company    TEXT DEFAULT '',            -- 快递公司
   status     TEXT DEFAULT 'pending',     -- pending | done
   created_at TEXT NOT NULL
 );
@@ -610,9 +611,14 @@ seedResources();
 
 /* ================= 快递 ================= */
 
-export function addPackage(owner, code, location) {
-  const r = db.prepare('INSERT INTO packages (owner, code, location, status, created_at) VALUES (?, ?, ?, \'pending\', ?)')
-    .run(owner, code, location, new Date().toISOString());
+const pkgCols = db.prepare('PRAGMA table_info(packages)').all().map((c) => c.name);
+if (!pkgCols.includes('company')) {
+  db.exec("ALTER TABLE packages ADD COLUMN company TEXT DEFAULT ''");
+}
+
+export function addPackage(owner, code, location, company = '') {
+  const r = db.prepare('INSERT INTO packages (owner, code, location, company, status, created_at) VALUES (?, ?, ?, ?, \'pending\', ?)')
+    .run(owner, code, location, company, new Date().toISOString());
   events.emit('change');
   return Number(r.lastInsertRowid);
 }
