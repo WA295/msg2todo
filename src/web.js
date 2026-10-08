@@ -16,8 +16,12 @@ import { getWeather, formatWeather } from './weather.js';
 import { parseWorkbook } from './excelImport.js';
 import { events, liveStatus } from './events.js';
 import { addPushSubscription, listPushSubscriptions, deletePushSubscription, listResources, addResource, deleteResource,
-  addPackage, listPackages, markPackageDone, deletePackage, addPost, listPosts, deletePost } from './db.js';
+  addPackage, listPackages, markPackageDone, deletePackage, addPost, listPosts, deletePost,
+  addAnnouncement, listAnnouncements, deleteAnnouncement } from './db.js';
 import { pushCountdownNow } from './countdown.js';
+import { sendWebPush } from './push.js';
+import { sendQQPrivate } from './onebot.js';
+import { sendBark, sendPushDeer } from './notify.js';
 
 const sseClients = new Set();
 let qrSvg = null;
@@ -64,6 +68,22 @@ export function startWeb() {
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-auth-token');
     if (req.method === 'OPTIONS') return res.sendStatus(204);
+    next();
+  });
+
+  // 简单限流:每 IP 每分钟最多 300 次请求
+  const rateMap = new Map();
+  app.use('/api', (req, res, next) => {
+    const ip = req.ip || 'unknown';
+    const now = Date.now();
+    let r = rateMap.get(ip);
+    if (!r || now - r.t > 60000) {
+      r = { count: 0, t: now };
+      rateMap.set(ip, r);
+    }
+    r.count++;
+    if (r.count > 300) return res.status(429).json({ error: '请求过于频繁,请稍后再试' });
+    if (rateMap.size > 5000) rateMap.clear();
     next();
   });
 
@@ -362,6 +382,34 @@ export function startWeb() {
     res.json({ ok: true });
   });
 
+  // ── 公告(所有人可看;管理员发布即全员广播)──
+  app.get('/api/announcements', (req, res) => {
+    res.json({ announcements: listAnnouncements(20) });
+  });
+
+  app.post('/api/announcements', express.json(), (req, res) => {
+    if (!req.user.isAdmin) return res.status(403).json({ error: '仅管理员可发公告' });
+    const title = String(req.body?.title || '').trim().slice(0, 40);
+    const content = String(req.body?.content || '').trim().slice(0, 500);
+    if (!title || !content) return res.status(400).json({ error: '标题和内容必填' });
+    addAnnouncement(title, content);
+    // 广播给所有学生:QQ + Web Push + 已绑定的手机推送
+    for (const u of listScheduleUsers()) {
+      if (u.owner.startsWith('qq:')) sendQQPrivate(u.owner.slice(3), `📢 公告:${title}\n\n${content}`);
+      sendWebPush(u.owner, `📢 ${title}`, content);
+      if (u.push_kind === 'bark') sendBark(`📢 ${title}`, content, u.push_key);
+      else if (u.push_kind === 'pushdeer') sendPushDeer(`📢 ${title}`, content, u.push_key);
+    }
+    console.log(`[公告] 「${title}」已广播给 ${listScheduleUsers().length} 人`);
+    res.json({ ok: true });
+  });
+
+  app.delete('/api/announcements/:id', (req, res) => {
+    if (!req.user.isAdmin) return res.status(403).json({ error: '仅管理员可删' });
+    if (!deleteAnnouncement(Number(req.params.id))) return res.status(404).json({ error: '公告不存在' });
+    res.json({ ok: true });
+  });
+
   // ── 数据备份下载(仅管理员)──
   app.get('/api/backup', (req, res) => {
     if (!req.user.isAdmin) return res.status(403).json({ error: '仅管理员可下载' });
@@ -473,6 +521,7 @@ export function startWeb() {
       runningPomodoro: running,
       dueTodos: openDue,
       weather,
+      announcements: listAnnouncements(5),
       status: { ...liveStatus, llm: config.llm.enabled, bark: Boolean(config.barkUrl), pushdeer: Boolean(config.pushDeerKey) },
       scheduleTimes: {
         weather: config.weather.city ? config.weather.notifyTime : null,

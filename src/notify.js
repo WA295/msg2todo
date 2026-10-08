@@ -101,6 +101,22 @@ function checkReminders() {
       sendWebPush(t.owner || 'qq:1487138742', '⏰ 待办已到期', t.title);
       db.prepare('UPDATE todos SET notified_at = ? WHERE id = ?').run(new Date().toISOString(), t.id);
     }
+
+    // 多级提醒:提前 3 天 / 1 天 / 3 小时(仅在任务创建早于该时间点时提醒,避免刚建就响)
+    const stages = [
+      ['notified_d3', 3 * 24 * 60, '3 天'],
+      ['notified_d1', 24 * 60, '1 天'],
+      ['notified_h3', 3 * 60, '3 小时'],
+    ];
+    for (const [col, mins, label] of stages) {
+      if (t[col]) continue;
+      const stageMs = mins * 60 * 1000;
+      if (due - stageMs <= now && due > now && new Date(t.created_at).getTime() < due - stageMs) {
+        sendAll('⏰ 待办提醒', `${t.title} · 还有 ${label} 到期 (${formatDue(t.due_at)})`);
+        sendWebPush(t.owner || 'qq:1487138742', '⏰ 待办提醒', `${t.title} · 还有 ${label} 到期`);
+        db.prepare(`UPDATE todos SET ${col} = ? WHERE id = ?`).run(new Date().toISOString(), t.id);
+      }
+    }
   }
 }
 
