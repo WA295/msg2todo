@@ -430,9 +430,14 @@ export function startWeb() {
     const owner = req.user.isAdmin ? 'qq:1487138742' : req.user.owner;
     const su = getScheduleUser(owner) || {};
     const wu = getWeatherUser(owner) || {};
+    let sTimes = [];
+    let wTimes = [];
+    try { sTimes = JSON.parse(su.schedule_times || '[]'); } catch {}
+    try { wTimes = JSON.parse(wu.times || '[]'); } catch {}
     res.json({
       schedule: {
         notifyTime: su.notify_time || config.schedule.notifyTime,
+        times: Array.isArray(sTimes) && sTimes.length ? sTimes : [su.notify_time || config.schedule.notifyTime],
         semesterStart: su.semester_start || config.schedule.semesterStart,
         classRemind: su.class_remind !== 0,
         classRemindMinutes: config.classRemindMinutes,
@@ -441,8 +446,10 @@ export function startWeb() {
       weather: {
         city: wu.city || config.weather.city,
         time: wu.notify_time || config.weather.notifyTime,
+        times: Array.isArray(wTimes) && wTimes.length ? wTimes : [wu.notify_time || config.weather.notifyTime],
         enabled: wu.enabled !== 0,
       },
+      countdown: { time: su.countdown_time || config.countdownNotifyTime },
       push: { kind: su.push_kind || '', hasKey: Boolean(su.push_key) },
       countdowns: listCountdowns(owner).map((c) => ({ ...c, id: Number(c.id) })),
       pomodoro: {
@@ -450,6 +457,27 @@ export function startWeb() {
         stats: pomodoroStats(owner),
       },
     });
+  });
+
+  // 提醒时段设置:type = schedule(课表,多时段) | weather(天气,多时段) | countdown(倒计时,单时段)
+  app.post('/api/reminder/times', express.json(), (req, res) => {
+    const owner = req.user.isAdmin ? 'qq:1487138742' : req.user.owner;
+    const type = String(req.body?.type || '');
+    const times = (Array.isArray(req.body?.times) ? req.body.times : [])
+      .map((t) => String(t || '').trim())
+      .filter((t) => /^\d{1,2}:\d{2}$/.test(t))
+      .sort()
+      .slice(0, 3);
+    if (type === 'schedule') {
+      upsertScheduleUser(owner, { scheduleTimes: JSON.stringify(times) });
+    } else if (type === 'weather') {
+      upsertWeatherUser(owner, { times: JSON.stringify(times) });
+    } else if (type === 'countdown') {
+      upsertScheduleUser(owner, { countdownTime: times[0] || '' });
+    } else {
+      return res.status(400).json({ error: 'type 应为 schedule / weather / countdown' });
+    }
+    res.json({ ok: true, times });
   });
 
   // 总览:看板首页聚合数据(天气/明日课程/倒计时/番茄/待办/自动化时间表)

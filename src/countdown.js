@@ -35,15 +35,18 @@ export function pushCountdownNow(owner, title, target) {
 async function check() {
   const nowP = partsOf(new Date());
   const curMin = nowP.h * 60 + nowP.mi;
-  const [h, m] = config.countdownNotifyTime.split(':').map(Number);
-  if (curMin < h * 60 + m) return;
   const today = partsToStr(nowP);
 
   const owners = db.prepare('SELECT DISTINCT owner FROM countdowns').all();
   for (const { owner } of owners) {
     let u = getScheduleUser(owner);
     if (!u) u = upsertScheduleUser(owner, {}); // 补建用户记录,保证去重字段可用
-    if (u.last_countdown_remind === today) continue;
+    // 个人推送时间,空则用全局
+    const time = u.countdown_time || config.countdownNotifyTime;
+    if (!/^\d{1,2}:\d{2}$/.test(time)) continue;
+    const [h, m] = time.split(':').map(Number);
+    if (curMin < h * 60 + m) continue;
+    if (u.last_countdown_remind && u.last_countdown_remind.startsWith(today)) continue;
     const cds = listCountdowns(owner).filter((c) => c.target >= today);
     if (!cds.length) continue;
     const lines = cds.map((c) => {
@@ -57,7 +60,7 @@ async function check() {
     const text = `⏳ 倒计时提醒\n${lines.join('\n')}`;
     notify(owner, text);
     setScheduleUserReminded(owner, 'last_countdown_remind', today);
-    console.log(`[倒计时] 已推送 ${cds.length} 条倒计时给「${owner}」`);
+    console.log(`[倒计时] 已推送 ${cds.length} 条倒计时给「${owner}」(${time})`);
   }
 }
 export { check as checkCountdowns };

@@ -738,7 +738,7 @@ async function renderPushCard(frag) {
 /* ---- 功能控制面板(替代 QQ 指令) ---- */
 $('#ctrlClose').onclick = () => { $('#ctrlModal').style.display = 'none'; };
 
-async function openCtrl(id, title) {
+async function openCtrl(id, title, ctx) {
   $('#ctrlTitle').textContent = title;
   $('#ctrlModal').style.display = 'flex';
   const body = $('#ctrlBody');
@@ -941,6 +941,42 @@ async function openCtrl(id, title) {
       await post('/api/announcements', { title: tI.value.trim(), content: cT.value.trim() });
       alert('公告已发布,已推送给全体学生');
       openCtrl('ann', '📢 公告');
+    }));
+  } else if (id === 'times') {
+    const type = ctx?.type || 'schedule';
+    const maxSlots = type === 'countdown' ? 1 : 3;
+    const cur = type === 'schedule' ? s.schedule.times : type === 'weather' ? s.weather.times : [s.countdown.time];
+    const items = [];
+    const wrap = el('div');
+    const renderSlots = () => {
+      wrap.innerHTML = '';
+      items.forEach((entry, i) => {
+        const r = el('div', 'toolbar');
+        r.style.marginBottom = '8px';
+        const inp = el('input');
+        inp.type = 'time';
+        inp.className = 'search';
+        inp.style.maxWidth = '140px';
+        inp.value = entry.val;
+        entry.inp = inp;
+        const rm = el('button', 'del', '✕');
+        rm.onclick = () => { items.splice(i, 1); renderSlots(); };
+        r.appendChild(inp);
+        r.appendChild(rm);
+        wrap.appendChild(r);
+      });
+    };
+    cur.forEach((t) => items.push({ val: t }));
+    renderSlots();
+    body.appendChild(el('div', 'sub', type === 'countdown' ? '倒计时每天提醒一次' : `最多 ${maxSlots} 个时段,每天到点各提醒一次`));
+    body.appendChild(wrap);
+    if (items.length < maxSlots) {
+      body.appendChild(mkBtn('➕ 添加时段', () => { items.push({ val: '' }); renderSlots(); }, 'mini-btn'));
+    }
+    body.appendChild(mkBtn('💾 保存', async () => {
+      const times = items.map((e) => e.inp.value).filter((v) => v);
+      await post('/api/reminder/times', { type, times });
+      openCtrl('times', '⏰ 提醒时段', ctx);
     }));
   }
 }
@@ -1385,7 +1421,7 @@ function renderSettings(s) {
 
   // 课表与提醒
   const rem = scard('⏰ 课表与提醒');
-  rem.appendChild(srow('🌅', '课表提醒时间', s.schedule.notifyTime, () => openCtrl('remind', '⏰ 提醒设置')));
+  rem.appendChild(srow('🌅', '课表提醒时间', `${s.schedule.times.join('、')}(每天 ${s.schedule.times.length} 次)`, () => openCtrl('times', '⏰ 课表提醒时段', { type: 'schedule' })));
   rem.appendChild(srow('🔔', '上课前提醒', s.schedule.classRemind ? `课前 ${s.schedule.classRemindMinutes} 分钟` : '已关闭', () => openCtrl('remind', '⏰ 提醒设置')));
   rem.appendChild(srow('🌙', '睡觉提醒', s.schedule.sleepTime || '未设置', () => openCtrl('remind', '⏰ 提醒设置')));
   rem.appendChild(srow('📅', '开学日期', s.schedule.semesterStart || '未设置', () => openCtrl('remind', '⏰ 提醒设置')));
@@ -1394,14 +1430,15 @@ function renderSettings(s) {
   // 天气
   const wea = scard('🌤 天气');
   wea.appendChild(srow('🏙', '城市', s.weather.city, () => openCtrl('weather', '🌤 天气')));
-  wea.appendChild(srow('🕖', '推送时间', s.weather.time, () => openCtrl('weather', '🌤 天气')));
+  wea.appendChild(srow('🕖', '推送时间', `${s.weather.times.join('、')}(每天 ${s.weather.times.length} 次)`, () => openCtrl('times', '🌤 天气提醒时段', { type: 'weather' })));
   wea.appendChild(srow('🔔', '每日推送', s.weather.enabled ? '开启' : '关闭', () => openCtrl('weather', '🌤 天气')));
   frag.appendChild(wea);
 
   // 番茄与倒计时
   const misc = scard('🍅 效率');
   misc.appendChild(srow('🍅', '番茄钟', s.pomodoro.running ? `进行中 ${s.pomodoro.running.round}/${s.pomodoro.running.rounds} 轮` : `今日 ${s.pomodoro.stats.today} 个`, () => openCtrl('pomo', '🍅 番茄钟')));
-  misc.appendChild(srow('⏳', '倒计时', `${s.countdowns.length} 个`, () => openCtrl('cd', '⏳ 倒计时')));
+  misc.appendChild(srow('⏳', '倒计时', `${s.countdowns.length} 个 · 每天 ${s.countdown.time} 提醒`, () => openCtrl('cd', '⏳ 倒计时')));
+  misc.appendChild(srow('🕗', '倒计时提醒时间', s.countdown.time, () => openCtrl('times', '⏳ 倒计时提醒时间', { type: 'countdown' })));
   misc.appendChild(srow('📦', '快递', '', () => openCtrl('pkg', '📦 快递')));
   frag.appendChild(misc);
 
