@@ -435,6 +435,7 @@ export function startWeb() {
         notifyTime: su.notify_time || config.schedule.notifyTime,
         semesterStart: su.semester_start || config.schedule.semesterStart,
         classRemind: su.class_remind !== 0,
+        classRemindMinutes: config.classRemindMinutes,
         sleepTime: su.sleep_time || '',
       },
       weather: {
@@ -490,6 +491,7 @@ export function startWeb() {
 
     // 天气:学生显示自己设置的城市(或全局),管理员显示全局
     let weather = null;
+    let weatherCode = 0;
     let weatherCity = null;
     if (!me.isAdmin) {
       const wu = getWeatherUser(me.owner);
@@ -500,7 +502,9 @@ export function startWeb() {
     }
     if (weatherCity) {
       try {
-        weather = formatWeather(await getWeather(weatherCity));
+        const data = await getWeather(weatherCity);
+        weather = formatWeather(data);
+        weatherCode = data.daily?.weather_code?.[0] ?? data.current?.weather_code ?? 0;
       } catch (e) {
         console.warn('[看板] 天气获取失败:', e.message);
       }
@@ -520,7 +524,7 @@ export function startWeb() {
       countdowns,
       runningPomodoro: running,
       dueTodos: openDue,
-      weather,
+      weather: weather ? { text: weather, code: weatherCode } : null,
       announcements: listAnnouncements(5),
       status: { ...liveStatus, llm: config.llm.enabled, bark: Boolean(config.barkUrl), pushdeer: Boolean(config.pushDeerKey) },
       scheduleTimes: {

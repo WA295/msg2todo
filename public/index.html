@@ -140,8 +140,30 @@
   .tl li { display: flex; align-items: center; gap: 10px; padding: 9px 12px; font-size: 13.5px; border-radius: 10px; }
   .tl li:nth-child(odd) { background: var(--bg); }
   .tl .t { font-weight: 700; color: var(--accent); min-width: 96px; }
-  .weather-box { background: linear-gradient(135deg, #3370ff 0%, #4096ff 100%); color: #fff; border-radius: 16px; padding: 20px; margin-bottom: 14px; box-shadow: 0 8px 24px -12px rgba(51, 112, 255, .4); animation: fadeUp .4s ease both; }
+  .weather-box { position: relative; overflow: hidden; color: #fff; border-radius: 16px; padding: 20px; margin-bottom: 14px; box-shadow: 0 8px 24px -12px rgba(31, 35, 41, .35); animation: fadeUp .4s ease both; transition: background .6s ease; }
+  .weather-box.w-sun { background: linear-gradient(160deg, #2f8fff 0%, #5fb4ff 100%); box-shadow: 0 8px 24px -12px rgba(47, 143, 255, .5); }
+  .weather-box.w-cloud { background: linear-gradient(160deg, #5d7fa6 0%, #8fa8c7 100%); }
+  .weather-box.w-overcast { background: linear-gradient(160deg, #6d7d92 0%, #9aa8bb 100%); }
+  .weather-box.w-fog { background: linear-gradient(160deg, #8494a8 0%, #b6c2d0 100%); }
+  .weather-box.w-rain { background: linear-gradient(160deg, #33435f 0%, #55688a 100%); box-shadow: 0 8px 24px -12px rgba(51, 67, 95, .55); }
+  .weather-box.w-snow { background: linear-gradient(160deg, #6f9cc4 0%, #c3dcef 100%); }
+  .weather-box.w-storm { background: linear-gradient(160deg, #252c44 0%, #434d6e 100%); }
+  .weather-box .w-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .weather-box .w-icon { font-size: 34px; line-height: 1; animation: wfloat 3s ease-in-out infinite; }
+  .weather-box.w-sun .w-icon { animation: wpulse 2.5s ease-in-out infinite; }
+  .weather-box .w-cond { font-size: 15px; font-weight: 700; }
   .weather-box .w-lines { font-size: 13.5px; line-height: 1.95; opacity: .97; white-space: pre-line; }
+  /* 雨滴动画 */
+  .weather-box.w-rain::after, .weather-box.w-storm::after {
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background-image: linear-gradient(transparent 0%, rgba(255,255,255,.14) 100%);
+    background-size: 100% 28px;
+    animation: wrain 1.2s linear infinite;
+    opacity: .5;
+  }
+  @keyframes wfloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+  @keyframes wpulse { 0%, 100% { transform: scale(1); filter: drop-shadow(0 0 6px rgba(255,220,100,.8)); } 50% { transform: scale(1.08); filter: drop-shadow(0 0 14px rgba(255,220,100,1)); } }
+  @keyframes wrain { from { background-position: 0 -28px; } to { background-position: 0 0; } }
   .tom-cls { display: flex; align-items: center; gap: 10px; padding: 8px 11px; font-size: 13.5px; border-radius: 10px; }
   .tom-cls:nth-child(odd) { background: var(--bg); }
   .tom-cls .tm { font-weight: 800; color: var(--accent); white-space: nowrap; }
@@ -150,6 +172,15 @@
   .cd-item .d { font-weight: 800; color: var(--high); white-space: nowrap; }
   .cheat { font-size: 12.5px; line-height: 2; color: var(--text); }
   .cheat code { background: var(--accent-soft); color: var(--accent); padding: 2px 7px; border-radius: 6px; font-size: 12px; }
+
+  /* ── 设置列表(iOS 风格)── */
+  .set-row { display: flex; align-items: center; gap: 12px; padding: 14px 6px; border-bottom: 1px solid var(--line); cursor: pointer; transition: background .15s; border-radius: 8px; }
+  .set-row:last-child { border-bottom: none; }
+  .set-row:hover { background: var(--accent-soft); }
+  .set-row .sicon { font-size: 20px; }
+  .set-row .sname { flex: 1; font-size: 14px; font-weight: 600; }
+  .set-row .sval { font-size: 12.5px; color: var(--muted); text-align: right; max-width: 46%; word-break: break-all; }
+  .set-row .arrow { color: var(--muted); }
 
   /* ── 顶部/底部导航 ── */
   .vtabs { display: flex; gap: 6px; margin-bottom: 14px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
@@ -292,6 +323,7 @@
     <button class="vtab" data-v="sched">📚 课表</button>
     <button class="vtab" data-v="res">📖 学习资源</button>
     <button class="vtab" data-v="board">💬 留言板</button>
+    <button class="vtab" data-v="settings">⚙️ 设置</button>
   </div>
 
   <nav class="bottom-nav">
@@ -300,6 +332,7 @@
     <button class="vtab" data-v="sched"><span class="bicon">📚</span>课表</button>
     <button class="vtab" data-v="res"><span class="bicon">📖</span>资源</button>
     <button class="vtab" data-v="board"><span class="bicon">💬</span>留言板</button>
+    <button class="vtab" data-v="settings"><span class="bicon">⚙️</span>设置</button>
   </nav>
 
   <div id="homeView"></div>
@@ -340,6 +373,8 @@
   <div id="resourceView" style="display:none"></div>
 
   <div id="boardView" style="display:none"></div>
+
+  <div id="settingsView" style="display:none"></div>
 </div>
 
 <div class="modal" id="qrModal" style="display:none">
@@ -446,8 +481,7 @@ $('#bindBtn').onclick = async () => {
 
 // 服务器设置弹窗(仅当没有可用地址时自动弹出)
 $('#setBtn').onclick = () => {
-  $('#setModal').style.display = 'flex';
-  $('#setServer').value = localStorage.getItem('server') || BASE || '';
+  document.querySelector('.vtab[data-v="settings"]').click();
 };
 $('#setClose').onclick = () => { $('#setModal').style.display = 'none'; };
 $('#setSave').onclick = () => {
@@ -638,6 +672,19 @@ loadHome();
 })();
 const VWD = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 const vfmtMin = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+
+/* WMO 天气代码 → [图标, 名称, 样式类] */
+function weatherCond(code) {
+  if (code === 0) return ['☀️', '晴', 'w-sun'];
+  if (code === 1) return ['🌤', '晴间多云', 'w-sun'];
+  if (code === 2) return ['⛅', '多云', 'w-cloud'];
+  if (code === 3) return ['☁️', '阴', 'w-overcast'];
+  if (code === 45 || code === 48) return ['🌫', '雾', 'w-fog'];
+  if (code >= 71 && code <= 77) return ['❄️', '雪', 'w-snow'];
+  if (code >= 85 && code <= 86) return ['🌨', '阵雪', 'w-snow'];
+  if (code >= 95) return ['⛈', '雷雨', 'w-storm'];
+  return ['🌧', '雨', 'w-rain']; // 51-67, 80-82
+}
 
 /* ---- Web Push(App 原生推送)---- */
 function urlBase64ToUint8Array(base64String) {
@@ -1015,10 +1062,16 @@ function renderHome(d) {
     frag.appendChild(g);
   }
 
-  // 天气
+  // 天气(按实际天气动态换背景)
   if (d.weather) {
-    const w = el('div', 'weather-box');
-    w.appendChild(el('div', 'w-lines', d.weather));
+    const code = d.weather.code || 0;
+    const [wicon, wname, wcls] = weatherCond(code);
+    const w = el('div', `weather-box ${wcls}`);
+    const head = el('div', 'w-head');
+    head.appendChild(el('span', 'w-icon', wicon));
+    head.appendChild(el('span', 'w-cond', wname));
+    w.appendChild(head);
+    w.appendChild(el('div', 'w-lines', d.weather.text));
     frag.appendChild(w);
   }
 
@@ -1315,6 +1368,104 @@ function renderBoard(posts) {
   }
 }
 
+/* ================= 设置视图 ================= */
+async function loadSettings() {
+  try {
+    const s = await fetch('/api/settings').then((r) => r.json());
+    renderSettings(s);
+  } catch {}
+}
+
+function renderSettings(s) {
+  const box = $('#settingsView');
+  box.innerHTML = '';
+  const frag = document.createDocumentFragment();
+
+  const srow = (icon, name, val, onClick) => {
+    const r = el('div', 'set-row');
+    r.appendChild(el('span', 'sicon', icon));
+    r.appendChild(el('span', 'sname', name));
+    if (val) r.appendChild(el('span', 'sval', val));
+    r.appendChild(el('span', 'arrow', '›'));
+    if (onClick) r.onclick = onClick;
+    return r;
+  };
+  const scard = (title) => {
+    const c = el('div', 'card');
+    c.appendChild(el('div', 'h2', title));
+    return c;
+  };
+
+  // 账号
+  const acc = scard('👤 账号');
+  const meName = window.ME?.isAdmin ? '管理员' : (window.ME?.name || '同学');
+  acc.appendChild(srow('🆔', '当前身份', meName, null));
+  acc.appendChild(srow('↩️', '退出登录', '', () => { localStorage.removeItem('token'); localStorage.removeItem('me'); location.reload(); }));
+  frag.appendChild(acc);
+
+  // 消息推送
+  const push = scard('🔔 消息推送');
+  getPushState().then((st) => {
+    push.appendChild(srow('📲', '原生推送(Web Push)', st.state === 'on' ? '已开启 ✓' : st.state === 'denied' ? '权限被拒' : st.state === 'unsupported' ? '设备不支持' : '未开启', () => { if (st.state === 'on') disablePush(); else if (st.state !== 'denied' && st.state !== 'unsupported') enablePush(); }));
+    push.appendChild(srow('📱', '手机推送(Bark/PushDeer)', s.push.kind ? `${s.push.kind === 'bark' ? 'Bark' : 'PushDeer'} 已绑定` : '未绑定', () => openCtrl('pushbind', '🔔 手机推送')));
+    frag.appendChild(push);
+  });
+
+  // 课表与提醒
+  const rem = scard('⏰ 课表与提醒');
+  rem.appendChild(srow('🌅', '课表提醒时间', s.schedule.notifyTime, () => openCtrl('remind', '⏰ 提醒设置')));
+  rem.appendChild(srow('🔔', '上课前提醒', s.schedule.classRemind ? `课前 ${s.schedule.classRemindMinutes} 分钟` : '已关闭', () => openCtrl('remind', '⏰ 提醒设置')));
+  rem.appendChild(srow('🌙', '睡觉提醒', s.schedule.sleepTime || '未设置', () => openCtrl('remind', '⏰ 提醒设置')));
+  rem.appendChild(srow('📅', '开学日期', s.schedule.semesterStart || '未设置', () => openCtrl('remind', '⏰ 提醒设置')));
+  frag.appendChild(rem);
+
+  // 天气
+  const wea = scard('🌤 天气');
+  wea.appendChild(srow('🏙', '城市', s.weather.city, () => openCtrl('weather', '🌤 天气')));
+  wea.appendChild(srow('🕖', '推送时间', s.weather.time, () => openCtrl('weather', '🌤 天气')));
+  wea.appendChild(srow('🔔', '每日推送', s.weather.enabled ? '开启' : '关闭', () => openCtrl('weather', '🌤 天气')));
+  frag.appendChild(wea);
+
+  // 番茄与倒计时
+  const misc = scard('🍅 效率');
+  misc.appendChild(srow('🍅', '番茄钟', s.pomodoro.running ? `进行中 ${s.pomodoro.running.round}/${s.pomodoro.running.rounds} 轮` : `今日 ${s.pomodoro.stats.today} 个`, () => openCtrl('pomo', '🍅 番茄钟')));
+  misc.appendChild(srow('⏳', '倒计时', `${s.countdowns.length} 个`, () => openCtrl('cd', '⏳ 倒计时')));
+  misc.appendChild(srow('📦', '快递', '', () => openCtrl('pkg', '📦 快递')));
+  frag.appendChild(misc);
+
+  // 服务器
+  const srv = scard('⚙️ 服务器');
+  const sInput = el('input');
+  sInput.className = 'search';
+  sInput.placeholder = '如 http://182.92.163.6:8080';
+  sInput.value = BASE || '';
+  const row = el('div', 'toolbar');
+  row.appendChild(sInput);
+  const saveBtn = el('button', 'mini-btn', '保存');
+  saveBtn.onclick = () => {
+    const v = sInput.value.trim().replace(/\/+$/, '');
+    if (v) localStorage.setItem('server', v);
+    else localStorage.removeItem('server');
+    location.reload();
+  };
+  row.appendChild(saveBtn);
+  srv.appendChild(row);
+  frag.appendChild(srv);
+
+  // 管理员:备份
+  if (window.ME?.isAdmin) {
+    const bk = scard('💾 数据');
+    const a = el('a', 'set-row', el('span', 'sicon', '💾'), el('span', 'sname', '下载数据备份'), el('span', 'sval', '云端每日自动备份'), el('span', 'arrow', '›'));
+    a.href = `${BASE}/api/backup?token=${encodeURIComponent(AUTH)}`;
+    a.style.textDecoration = 'none';
+    a.style.color = 'var(--text)';
+    bk.appendChild(a);
+    frag.appendChild(bk);
+  }
+
+  box.appendChild(frag);
+}
+
 /* ================= 课表视图 ================= */
 const WD = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 const fmtMin = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
@@ -1329,10 +1480,12 @@ document.querySelectorAll('.vtab').forEach((btn) => {
     $('#scheduleView').style.display = v === 'sched' ? '' : 'none';
     $('#resourceView').style.display = v === 'res' ? '' : 'none';
     $('#boardView').style.display = v === 'board' ? '' : 'none';
+    $('#settingsView').style.display = v === 'settings' ? '' : 'none';
     if (v === 'home') loadHome();
     if (v === 'sched') loadSchedule();
     if (v === 'res') loadResources();
     if (v === 'board') loadBoard();
+    if (v === 'settings') loadSettings();
   };
 });
 
