@@ -478,6 +478,15 @@
   </div>
 </div>
 
+<div class="modal" id="updateModal" style="display:none">
+  <div class="modal-card" style="text-align:left; min-width:min(330px, 90vw)">
+    <h3 style="text-align:center">🎉 发现新版本</h3>
+    <div class="sub" id="updateText" style="text-align:center; margin-bottom:14px"></div>
+    <button class="btn" id="updateNow" style="width:100%">📥 立即更新</button>
+    <button class="btn" id="updateLater" style="width:100%; margin-top:8px; background:var(--fill); color:var(--text)">稍后再说</button>
+  </div>
+</div>
+
 <script src="app-config.js"></script>
 <script>
 const $ = (s) => document.querySelector(s);
@@ -605,6 +614,34 @@ function toast(msg) {
 // 把原本被静默吞掉的错误显示出来,便于定位问题
 window.addEventListener('error', (e) => { try { toast('⚠️ ' + (e.message || '出错了')); } catch {} });
 window.addEventListener('unhandledrejection', (e) => { const r = e.reason; try { toast('⚠️ ' + ((r && r.message) || r || '出错了')); } catch {} });
+
+/* ================= App 自动更新检查(仅安卓 App 内) ================= */
+let _updateVer = 0;
+async function checkAppUpdate(manual) {
+  const localCode = Number(window.APP_CONFIG?.versionCode || 0);
+  if (!localCode) { if (manual) toast('ℹ️ 网页版无需更新,刷新即最新'); return; }
+  try {
+    const d = await fetch(`${BASE}/api/app/update?t=${Date.now()}`).then((r) => r.json());
+    if (d.versionCode && d.versionCode > localCode) {
+      if (!manual && Number(localStorage.getItem('skipAppVersion')) === Number(d.versionCode)) return;
+      _updateVer = Number(d.versionCode);
+      $('#updateText').textContent = `当前 v${window.APP_CONFIG.versionName || localCode} → 最新 v${d.versionName || d.versionCode},建议更新。`;
+      $('#updateModal').style.display = 'flex';
+    } else if (manual) {
+      toast('✅ 已是最新版本');
+    }
+  } catch (e) {
+    if (manual) toast('❌ 检查失败:' + e.message);
+  }
+}
+$('#updateNow').onclick = () => {
+  $('#updateModal').style.display = 'none';
+  try { window.open(`${BASE}/app.apk`, '_system'); } catch { location.href = `${BASE}/app.apk`; }
+};
+$('#updateLater').onclick = () => {
+  if (_updateVer) localStorage.setItem('skipAppVersion', String(_updateVer));
+  $('#updateModal').style.display = 'none';
+};
 
 /* ================= App 本地弹窗(安卓 App 内原生通知) ================= */
 function nativeNotify() {
@@ -830,6 +867,7 @@ connectSSE();
 setInterval(() => { load(); loadHome(); scheduleTodoPops(); }, 30000);
 scheduleTodoPops();
 refreshChatUnread();
+checkAppUpdate();
 fetch('/api/status').then((r) => r.json()).then(renderStatus);
 load();
 // 注册推送 Service Worker
@@ -1918,6 +1956,9 @@ function renderSettings(s) {
   const srv = scard('⚙️ 服务器');
   srv.appendChild(srow('🤖', '个人 QQ 机器人', '用自己的 QQ 连 iTodo', () => openCtrl('qqbot', '🤖 个人 QQ 机器人')));
   srv.appendChild(srow('🏘️', 'QQ 群白名单', (s.groupWhitelist && s.groupWhitelist.length) ? `${s.groupWhitelist.length} 个群` : '未设置', () => openCtrl('grouplist', '🏘️ QQ 群白名单')));
+  if (window.APP_CONFIG?.versionCode) {
+    srv.appendChild(srow('🔄', '检查更新', `当前 v${window.APP_CONFIG.versionName || window.APP_CONFIG.versionCode}`, () => checkAppUpdate(true)));
+  }
   const sInput = el('input');
   sInput.className = 'search';
   sInput.placeholder = '如 http://182.92.163.6:8080';

@@ -13,19 +13,24 @@ fi
 
 echo "═══ 打包安卓 APK ═══"
 
-# 可选:内置服务器配置,如 SERVER=http://1.2.3.4:8080 TOKEN=xxx bash scripts/build-apk.sh
-if [ -n "$SERVER" ] || [ -n "$TOKEN" ]; then
-  S="${SERVER:-$(node -e "console.log(require('./public/app-config.js')?1:'')" 2>/dev/null; grep -oP "(?<=server: ')[^']+" public/app-config.js 2>/dev/null)}"
-  T="${TOKEN:-$(grep -oP "(?<=authToken: ')[^']*" public/app-config.js 2>/dev/null)}"
-  echo "内置服务器地址: ${S%/}  访问令牌: ${T:+已设置}"
-  {
-    echo '/** 打包时内置的服务器配置(安卓 App 打开即用;改了这里要重新 build:apk) */'
-    echo 'window.APP_CONFIG = {'
-    echo "  server: '${S%/}',"
-    echo "  authToken: '$T',"
-    echo '};'
-  } > public/app-config.js
-fi
+# 内置服务器配置 + 版本号(每次打包都重写;SERVER/TOKEN 可用环境变量覆盖)
+S="${SERVER:-$(grep -oP "(?<=server: ')[^']+" public/app-config.js 2>/dev/null)}"
+S="${S:-http://182.92.163.6:8080}"
+T="${TOKEN:-$(grep -oP "(?<=authToken: ')[^']*" public/app-config.js 2>/dev/null)}"
+VC=$(grep -E '^VERSION_CODE=' android/gradle.properties | cut -d= -f2 | tr -d ' ')
+VN=$(grep -E '^VERSION_NAME=' android/gradle.properties | cut -d= -f2 | tr -d ' ')
+VC=${VC:-1}; VN=${VN:-1.0}
+echo "内置服务器: ${S%/}  访问令牌: ${T:+已设置}  版本: $VN($VC)"
+{
+  echo '/** 打包时内置的服务器配置(安卓 App 打开即用;改了这里要重新 build:apk) */'
+  echo 'window.APP_CONFIG = {'
+  echo "  server: '${S%/}',"
+  echo "  authToken: '$T',"
+  echo "  versionCode: $VC,"
+  echo "  versionName: '$VN',"
+  echo '};'
+} > public/app-config.js
+echo "{\"versionCode\":$VC,\"versionName\":\"$VN\"}" > public/app-version.json
 
 npx cap sync android
 
