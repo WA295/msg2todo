@@ -177,6 +177,7 @@
     <button class="vtab on" data-v="home">🏠 总览</button>
     <button class="vtab" data-v="todo">📝 待办</button>
     <button class="vtab" data-v="sched">📚 课表</button>
+    <button class="vtab" data-v="res">📖 学习资源</button>
   </div>
 
   <div id="homeView"></div>
@@ -213,6 +214,8 @@
   </div>
 
   <div id="scheduleView" style="display:none"></div>
+
+  <div id="resourceView" style="display:none"></div>
 </div>
 
 <div class="modal" id="qrModal" style="display:none">
@@ -847,6 +850,113 @@ function renderHome(d) {
   box.appendChild(frag);
 }
 
+/* ================= 学习资源视图 ================= */
+let resList = [];
+let resCat = '全部';
+let resQ = '';
+
+async function loadResources() {
+  try {
+    const data = await fetch('/api/resources').then((r) => r.json());
+    resList = data.resources || [];
+    renderResources();
+  } catch {}
+}
+
+function renderResources() {
+  const box = $('#resourceView');
+  box.innerHTML = '';
+  const cats = ['全部', ...[...new Set(resList.map((r) => r.category))]];
+
+  // 顶部:分类 + 搜索 + 管理员添加
+  const bar = el('div', 'card');
+  const toolbar = el('div', 'toolbar');
+  const chips = el('div', 'tabs');
+  chips.style.flexWrap = 'wrap';
+  for (const c of cats) {
+    const b = el('button', 'tab' + (c === resCat ? ' on' : ''), c);
+    b.onclick = () => { resCat = c; renderResources(); };
+    chips.appendChild(b);
+  }
+  toolbar.appendChild(chips);
+  const search = el('input');
+  search.className = 'search';
+  search.placeholder = '搜索资源名称/描述…';
+  search.value = resQ;
+  search.oninput = (e) => { resQ = e.target.value.trim(); renderResources(); };
+  toolbar.appendChild(search);
+  bar.appendChild(toolbar);
+  box.appendChild(bar);
+
+  // 管理员:添加按钮
+  if (window.ME?.isAdmin) {
+    const addBar = el('div', 'card');
+    const form = el('div', 'toolbar');
+    const cI = el('input'); cI.className = 'search'; cI.placeholder = '分类(如 计算机)'; cI.style.maxWidth = '120px';
+    const tI = el('input'); tI.className = 'search'; tI.placeholder = '名称';
+    const uI = el('input'); uI.className = 'search'; uI.placeholder = '网址 http(s)://…'; uI.style.flex = '2';
+    const dI = el('input'); dI.className = 'search'; dI.placeholder = '简介(可选)';
+    const addBtn = el('button', 'btn', '➕ 添加资源');
+    addBtn.onclick = async () => {
+      if (!cI.value.trim() || !tI.value.trim() || !uI.value.trim()) { alert('分类/名称/网址必填'); return; }
+      const r = await fetch('/api/resources', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category: cI.value.trim(), title: tI.value.trim(), url: uI.value.trim(), description: dI.value.trim() }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { alert(d.error || '添加失败'); return; }
+      cI.value = tI.value = uI.value = dI.value = '';
+      loadResources();
+    };
+    form.appendChild(cI); form.appendChild(tI); form.appendChild(uI); form.appendChild(dI); form.appendChild(addBtn);
+    addBar.appendChild(form);
+    box.appendChild(addBar);
+  }
+
+  // 资源卡片(按分类分组)
+  const filtered = resList.filter((r) =>
+    (resCat === '全部' || r.category === resCat) &&
+    (!resQ || r.title.includes(resQ) || r.description.includes(resQ) || r.url.includes(resQ))
+  );
+  const byCat = {};
+  for (const r of filtered) (byCat[r.category] ||= []).push(r);
+
+  for (const cat of Object.keys(byCat)) {
+    const card = el('div', 'card');
+    card.appendChild(el('div', 'h2', `📚 ${cat}`));
+    const grid = el('div', 'feat-grid');
+    for (const r of byCat[cat]) {
+      const a = el('a', 'feat', el('div', 'icon', '🔗'), el('div', 'name', r.title), el('div', 'desc', r.description || r.url), el('span', 'cmd', r.url.replace(/^https?:\/\//, '')));
+      a.href = r.url;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.style.textDecoration = 'none';
+      a.style.color = 'var(--text)';
+      if (window.ME?.isAdmin) {
+        const del = el('button', 'del', '✕');
+        del.style.position = 'absolute';
+        del.style.top = '6px';
+        del.style.right = '6px';
+        del.style.background = '#fff';
+        del.onclick = async (ev) => {
+          ev.preventDefault();
+          if (!confirm(`删除「${r.title}」?`)) return;
+          await fetch(`/api/resources/${r.id}`, { method: 'DELETE' });
+          loadResources();
+        };
+        a.style.position = 'relative';
+        a.appendChild(del);
+      }
+      grid.appendChild(a);
+    }
+    card.appendChild(grid);
+    box.appendChild(card);
+  }
+
+  if (!filtered.length) box.appendChild(el('div', 'card pre', '没有匹配的资源。'));
+}
+
 /* ================= 课表视图 ================= */
 const WD = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 const fmtMin = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
@@ -859,8 +969,10 @@ document.querySelectorAll('.vtab').forEach((btn) => {
     $('#homeView').style.display = v === 'home' ? '' : 'none';
     $('#todoView').style.display = v === 'todo' ? '' : 'none';
     $('#scheduleView').style.display = v === 'sched' ? '' : 'none';
+    $('#resourceView').style.display = v === 'res' ? '' : 'none';
     if (v === 'home') loadHome();
     if (v === 'sched') loadSchedule();
+    if (v === 'res') loadResources();
   };
 });
 

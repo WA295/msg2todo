@@ -14,7 +14,7 @@ import { buildDayText } from './schedule.js';
 import { getWeather, formatWeather } from './weather.js';
 import { parseWorkbook } from './excelImport.js';
 import { events, liveStatus } from './events.js';
-import { addPushSubscription, listPushSubscriptions, deletePushSubscription } from './db.js';
+import { addPushSubscription, listPushSubscriptions, deletePushSubscription, listResources, addResource, deleteResource } from './db.js';
 
 const sseClients = new Set();
 let qrSvg = null;
@@ -270,6 +270,31 @@ export function startWeb() {
   app.post('/api/push/unbind', (req, res) => {
     const owner = req.user.isAdmin ? 'qq:1487138742' : req.user.owner;
     upsertScheduleUser(owner, { pushKind: '', pushKey: '' });
+    res.json({ ok: true });
+  });
+
+  // ── 学习资源(所有人可看;管理员可增删)──
+  app.get('/api/resources', (req, res) => {
+    res.json({ resources: listResources() });
+  });
+
+  app.post('/api/resources', express.json(), (req, res) => {
+    if (!req.user.isAdmin) return res.status(403).json({ error: '仅管理员可添加' });
+    const { category, title, url, description } = req.body || {};
+    if (!String(category || '').trim() || !String(title || '').trim()) return res.status(400).json({ error: '分类和标题必填' });
+    if (!/^https?:\/\/.+/.test(String(url || ''))) return res.status(400).json({ error: '网址需以 http(s):// 开头' });
+    const id = addResource({
+      category: String(category).trim().slice(0, 20),
+      title: String(title).trim().slice(0, 40),
+      url: String(url).trim(),
+      description: String(description || '').trim().slice(0, 100),
+    });
+    res.json({ ok: true, id });
+  });
+
+  app.delete('/api/resources/:id', (req, res) => {
+    if (!req.user.isAdmin) return res.status(403).json({ error: '仅管理员可删除' });
+    if (!deleteResource(Number(req.params.id))) return res.status(404).json({ error: '资源不存在' });
     res.json({ ok: true });
   });
 
