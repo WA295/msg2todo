@@ -147,6 +147,16 @@ export function startWeb() {
     res.json({ token: u.web_token, name: u.name, owner });
   });
 
+  // App 更新检查(公开,无需登录)
+  app.get('/api/app/update', (req, res) => {
+    try {
+      const j = JSON.parse(fs.readFileSync(path.join(config.root, 'public', 'app-version.json'), 'utf8'));
+      res.json({ ...j, url: '/app.apk' });
+    } catch {
+      res.json({ versionCode: 0, versionName: '', url: '/app.apk' });
+    }
+  });
+
   // 访问控制:管理员令牌(全局)或学生个人令牌;/api 接口需带 x-auth-token 或 ?token=
   app.use('/api', (req, res, next) => {
     const token = req.headers['x-auth-token'] || req.query.token;
