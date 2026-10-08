@@ -1010,10 +1010,17 @@ async function openCtrl(id, title, ctx) {
       await post('/api/reminder/times', { type, times });
       openCtrl('times', '⏰ 提醒时段', ctx);
     }));
+  } else if (id === 'qqbot') {
+    const info = el('div', 'cheat');
+    info.innerHTML = `用自己的 QQ 当机器人,收到的消息自动生成你的待办:<br><br>
+<b>服务器地址</b><br><code>ws://182.92.163.6:3001</code><br><br>
+<b>接入令牌</b><br><code>itodo3001</code><br><br>
+Windows 推荐 <b>LLOneBot</b>(QQNT 插件):设置 → 反向 WebSocket 填上面地址+令牌<br>
+详细教程见 iTodo 仓库 <code>docs/个人QQ机器人.md</code>`;
+    body.appendChild(info);
   } else if (id === 'bg') {
     const PRESETS = [
-      { name: '默认灰白', css: '' },
-      { name: 'iTodo 蓝', css: 'linear-gradient(135deg, #53c0ff, #007aff)' },
+      { name: '默认灰白', css: '' },      { name: 'iTodo 蓝', css: 'linear-gradient(135deg, #53c0ff, #007aff)' },
       { name: '紫罗兰', css: 'linear-gradient(135deg, #c084fc, #7c3aed)' },
       { name: '薄荷', css: 'linear-gradient(135deg, #6ee7b7, #059669)' },
       { name: '日落', css: 'linear-gradient(135deg, #fdba74, #f43f5e)' },
@@ -1605,6 +1612,7 @@ function renderSettings(s) {
 
   // 服务器
   const srv = scard('⚙️ 服务器');
+  srv.appendChild(srow('🤖', '个人 QQ 机器人', '用自己的 QQ 连 iTodo', () => openCtrl('qqbot', '🤖 个人 QQ 机器人')));
   const sInput = el('input');
   sInput.className = 'search';
   sInput.placeholder = '如 http://182.92.163.6:8080';

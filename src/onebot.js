@@ -2,6 +2,7 @@ import { WebSocketServer } from 'ws';
 import { config } from './config.js';
 import { handleIncoming } from './todo.js';
 import { setStatus } from './events.js';
+import { getScheduleUser } from './db.js';
 
 /**
  * OneBot v11 反向 WebSocket 服务端。
@@ -21,11 +22,13 @@ export function startOneBot() {
   wss.on('error', (e) => console.error('[QQ] WebSocket 服务错误:', e.message));
 
   wss.on('connection', (ws, req) => {
-    // 令牌校验:Authorization: Bearer xxx 或 ?access_token=xxx
+    // 令牌校验:Authorization: Bearer xxx 或 ?access_token=xxx;本机回环连接免令牌
     if (config.onebot.token) {
+      const ra = req.socket.remoteAddress || '';
+      const isLoopback = ra === '127.0.0.1' || ra === '::1' || ra === '::ffff:127.0.0.1';
       const auth = req.headers['authorization'] || '';
       const queryToken = new URL(req.url, 'http://localhost').searchParams.get('access_token') || '';
-      if (auth !== `Bearer ${config.onebot.token}` && queryToken !== config.onebot.token) {
+      if (!isLoopback && auth !== `Bearer ${config.onebot.token}` && queryToken !== config.onebot.token) {
         console.warn('[QQ] 拒绝未授权连接');
         ws.close(4001, 'unauthorized');
         return;
@@ -96,7 +99,11 @@ function onPayload(ws, state, data) {
   if (messageType !== 'private' && messageType !== 'group') return;
 
   const senderId = String(data.sender?.user_id ?? data.user_id ?? '');
-  if (state.selfId !== null && senderId === String(state.selfId)) return; // 自己的消息
+
+  // 个人机器人模式:该连接的 QQ 号已登记为学生 → 所有消息归属这个学生自己
+  const personal = state.selfId ? Boolean(getScheduleUser(`qq:${state.selfId}`)) : false;
+  // 共享机器人:跳过自己的消息;个人机器人:自己的消息也处理(学生给自己发指令/转发消息)
+  if (state.selfId !== null && senderId === String(state.selfId) && !personal) return;
 
   const { text, mentioned, files } = parseMessage(data.message, state.selfId);
   if (!text && !files.length) return;
@@ -105,14 +112,15 @@ function onPayload(ws, state, data) {
   const senderName = data.sender?.card || data.sender?.nickname || senderId;
   const chatName = isGroup ? `群:${data.group_id}` : senderName;
 
-  if (isGroup) {
+  if (isGroup && !personal) {
     const inWhitelist = config.onebot.groupWhitelist.includes(String(data.group_id));
     if (!config.onebot.processAllGroup && !inWhitelist && !mentioned) return;
   }
 
   handleIncoming({
     platform: 'qq',
-    chatId: String(isGroup ? data.group_id : senderId),
+    // 个人模式:所有消息归属学生本人(chatId = 学生自己的 QQ 号)
+    chatId: personal ? String(state.selfId) : String(isGroup ? data.group_id : senderId),
     chatName,
     sender: senderName,
     text,
