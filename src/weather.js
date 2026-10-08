@@ -1,5 +1,6 @@
 import { config } from './config.js';
 import { getWeatherUser, upsertWeatherUser, setWeatherReminded, listScheduleUsers } from './db.js';
+import { jokeOfDay } from './db.js';
 import { partsOf } from './time.js';
 import { sendBark, sendPushDeer } from './notify.js';
 import { sendQQPrivate } from './onebot.js';
@@ -163,7 +164,8 @@ async function check() {
       if (curMin < sh * 60 + sm) continue;
       try {
         const data = await getWeather(city);
-        const text = formatWeather(data, { dateParts: nowP });
+        const j = jokeOfDay();
+        const text = formatWeather(data, { dateParts: nowP }) + (j ? `\n\n💡 每日一句:${j}` : '');
         notify(u.owner, text);
         setWeatherReminded(u.owner, `${today} ${slot}`);
         lastSlot = slot;
