@@ -62,7 +62,7 @@ function createWindow() {
     height: 720,
     minWidth: 780,
     minHeight: 540,
-    title: '待办助手 · msg2todo',
+    title: 'iTodo',
     icon: iconPath,
     autoHideMenuBar: true,
     webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true },

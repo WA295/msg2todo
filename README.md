@@ -7,8 +7,8 @@
   <img src="https://img.shields.io/badge/SQLite-本地存储-003B57?logo=sqlite&logoColor=white" alt="SQLite">
 </p>
 
-<h1 align="center">📝 msg2todo</h1>
-<p align="center"><b>实时接收 QQ(和微信)消息 → LLM 智能提取待办 → 桌面看板 + 手机推送</b></p>
+<h1 align="center">📝 iTodo</h1>
+<p align="center"><b>校园生活服务平台:课表/待办/番茄/天气/资源/留言板,全平台提醒推送</b></p>
 <p align="center">全免费 · 数据不出本机 · 支持 Linux / Windows</p>
 
 <p align="center">
