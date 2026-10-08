@@ -15,6 +15,7 @@ import { getWeather, formatWeather } from './weather.js';
 import { parseWorkbook } from './excelImport.js';
 import { events, liveStatus } from './events.js';
 import { addPushSubscription, listPushSubscriptions, deletePushSubscription, listResources, addResource, deleteResource } from './db.js';
+import { pushCountdownNow } from './countdown.js';
 
 const sseClients = new Set();
 let qrSvg = null;
@@ -222,6 +223,7 @@ export function startWeb() {
       return res.status(400).json({ error: '日期无效' });
     }
     const id = addCountdown(owner, title, target);
+    pushCountdownNow(owner, title, target);
     res.json({ ok: true, id });
   });
 
