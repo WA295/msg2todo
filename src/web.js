@@ -6,24 +6,29 @@ import { config } from './config.js';
 import {
   db, listTodos, toggleTodo, deleteTodo, addTodo, stats,
   listScheduleUsers, listScheduleItems, clearSchedule, deleteScheduleItem, replaceSchedule,
-  pomodoroTodayByOwner, getScheduleUser, upsertScheduleUser, getUserByToken, setWebToken, randomToken,
+  pomodoroTodayByOwner, getScheduleUser, upsertScheduleUser, getUserByToken, setWebToken, randomToken, getGroupWhitelist,
   getWeatherUser, startPomodoro, stopPomodoro, pomodoroStats, addCountdown, deleteCountdown, listCountdowns,
   upsertWeatherUser,
 } from './db.js';
 import { parseLocalInput, partsOf, weekOf, zonedDate, partsToStr, daysUntil } from './time.js';
 import { buildDayText } from './schedule.js';
 import { getWeather, formatWeather } from './weather.js';
-import { parseWorkbook } from './excelImport.js';
+import { parseScheduleUpload } from './excelImport.js';
 import { events, liveStatus } from './events.js';
 import { addPushSubscription, listPushSubscriptions, deletePushSubscription, listResources, addResource, deleteResource,
   addPackage, listPackages, markPackageDone, deletePackage, addPost, listPosts, deletePost,
-  addAnnouncement, listAnnouncements, deleteAnnouncement } from './db.js';
+  listPostsWithReplies, addPostReply, deletePostReply,
+  addAnnouncement, listAnnouncements, deleteAnnouncement, dismissAnnouncement, listAnnouncementsFor,
+  searchUsers, listFriends, listFriendRequests, sendFriendRequest, respondFriendRequest, removeFriend, areFriends,
+  BOT_OWNER, addChatMessage, listChatMessages, markChatRead, listConversations, totalChatUnread } from './db.js';
+import { handleIncoming } from './todo.js';
 import { pushCountdownNow } from './countdown.js';
 import { sendWebPush } from './push.js';
 import { sendQQPrivate } from './onebot.js';
 import { sendBark, sendPushDeer } from './notify.js';
 
 const sseClients = new Set();
+const sseOwners = new Map(); // SSE 连接 → owner(用于定向推送聊天消息)
 let qrSvg = null;
 
 function broadcast(event, payload) {
@@ -35,8 +40,49 @@ function broadcast(event, payload) {
   }
 }
 
+/** 只推给某个 owner 的所有在线连接 */
+function sendToOwner(owner, event, payload) {
+  if (!owner) return;
+  const data = JSON.stringify(payload ?? {});
+  for (const res of sseClients) {
+    if (sseOwners.get(res) === owner) {
+      try { res.write(`event: ${event}\ndata: ${data}\n\n`); } catch {}
+    }
+  }
+}
+
+/** 机器人对话:复用 QQ 指令管线,把回复落库并通过 SSE 推回 App */
+async function handleAppBot(me, text) {
+  const qq = me.replace(/^qq:/, '');
+  let replied = false;
+  const reply = async (t) => {
+    replied = true;
+    const m = addChatMessage(BOT_OWNER, me, String(t));
+    sendToOwner(me, 'chat', { peer: BOT_OWNER, message: m });
+    return m;
+  };
+  try {
+    await handleIncoming({ platform: 'qq', chatId: qq, chatName: 'App 聊天', sender: '我', text, reply });
+  } catch (e) {
+    console.warn('[机器人] 处理失败:', e.message);
+  }
+  if (!replied) {
+    await reply(
+      '我是 iTodo 机器人 🤖,可以帮你:\n' +
+      '• 记待办:直接发「明天 10 点交作业」\n' +
+      '• 课表:发「课表」「明天什么课」\n' +
+      '• 番茄钟:发「番茄 25」\n' +
+      '• 天气:发「天气」\n' +
+      '• 倒计时:发「倒计时 12月12日 四六级」\n' +
+      '• 快递:发「快递 8-1234 丰巢」'
+    );
+  }
+}
+
 // 数据变更 → 看板刷新
 events.on('change', () => broadcast('update', {}));
+// 天气更新 → 让在线客户端刷新天气卡片
+events.on('weather', () => broadcast('weather', {}));
 // 状态变更 → 看板状态条
 events.on('status', (s) => broadcast('status', s));
 // 微信扫码二维码
@@ -119,6 +165,15 @@ export function startWeb() {
       return next();
     }
     res.status(401).json({ error: 'unauthorized' });
+  });
+
+  // 当前身份(用于管理员登录校验 + 前端显示)
+  app.get('/api/me', (req, res) => {
+    res.json({
+      isAdmin: req.user.isAdmin,
+      owner: req.user.owner || (req.user.isAdmin ? 'qq:1487138742' : null),
+      name: req.user.name || '',
+    });
   });
 
   // 待办列表(学生只看自己的;管理员看全部)
@@ -359,9 +414,12 @@ export function startWeb() {
   // ── 留言板(所有人可见)──
   app.get('/api/posts', (req, res) => {
     const meOwner = req.user.isAdmin ? 'qq:1487138742' : req.user.owner;
-    res.json({
-      posts: listPosts(100).map((p) => ({ ...p, mine: req.user.isAdmin || p.owner === meOwner })),
-    });
+    const posts = listPostsWithReplies(100).map((p) => ({
+      ...p,
+      mine: req.user.isAdmin || p.owner === meOwner,
+      replies: (p.replies || []).map((r) => ({ ...r, mine: req.user.isAdmin || r.owner === meOwner })),
+    }));
+    res.json({ posts });
   });
 
   app.post('/api/posts', express.json(), (req, res) => {
@@ -379,6 +437,27 @@ export function startWeb() {
     const owner = req.user.isAdmin ? 'qq:1487138742' : req.user.owner;
     if (!req.user.isAdmin && p.owner !== owner) return res.status(403).json({ error: '无权操作' });
     deletePost(Number(req.params.id));
+    res.json({ ok: true });
+  });
+
+  // 回复某条留言
+  app.post('/api/posts/:id/replies', express.json(), (req, res) => {
+    const content = String(req.body?.content || '').trim().slice(0, 500);
+    if (!content) return res.status(400).json({ error: '回复不能为空' });
+    if (!db.prepare('SELECT id FROM posts WHERE id = ?').get(Number(req.params.id))) return res.status(404).json({ error: '留言不存在' });
+    const owner = req.user.isAdmin ? 'qq:1487138742' : req.user.owner;
+    const name = req.user.isAdmin ? '管理员' : (req.user.name || '同学');
+    addPostReply(Number(req.params.id), owner, name, content);
+    res.json({ ok: true });
+  });
+
+  // 删除回复(本人或管理员)
+  app.delete('/api/post-replies/:id', (req, res) => {
+    const row = db.prepare('SELECT * FROM post_replies WHERE id = ?').get(Number(req.params.id));
+    if (!row) return res.status(404).json({ error: '回复不存在' });
+    const owner = req.user.isAdmin ? 'qq:1487138742' : req.user.owner;
+    if (!req.user.isAdmin && row.owner !== owner) return res.status(403).json({ error: '无权操作' });
+    deletePostReply(Number(req.params.id));
     res.json({ ok: true });
   });
 
@@ -407,6 +486,87 @@ export function startWeb() {
   app.delete('/api/announcements/:id', (req, res) => {
     if (!req.user.isAdmin) return res.status(403).json({ error: '仅管理员可删' });
     if (!deleteAnnouncement(Number(req.params.id))) return res.status(404).json({ error: '公告不存在' });
+    res.json({ ok: true });
+  });
+
+  // 用户点「确认」→ 该公告对本人隐藏(不影响其他人)
+  app.post('/api/announcements/:id/dismiss', (req, res) => {
+    const owner = req.user.isAdmin ? 'qq:1487138742' : req.user.owner;
+    dismissAnnouncement(owner, Number(req.params.id));
+    res.json({ ok: true });
+  });
+
+  // ── 用户好友(用户之间互相添加)──
+  const meOwner = (req) => (req.user.isAdmin ? 'qq:1487138742' : req.user.owner);
+
+  app.get('/api/friends', (req, res) => {
+    const me = meOwner(req);
+    const u = getScheduleUser(me);
+    const { incoming, outgoing } = listFriendRequests(me);
+    res.json({ me: { owner: me, name: (u && u.name) || me }, friends: listFriends(me), incoming, outgoing });
+  });
+
+  app.get('/api/friends/search', (req, res) => {
+    res.json({ users: searchUsers(meOwner(req), req.query.q) });
+  });
+
+  app.post('/api/friends/request', express.json(), (req, res) => {
+    const r = sendFriendRequest(meOwner(req), String(req.body?.owner || '').trim());
+    if (r.error) return res.status(400).json(r);
+    res.json(r);
+  });
+
+  app.post('/api/friends/:id/accept', (req, res) => {
+    const r = respondFriendRequest(Number(req.params.id), meOwner(req), true);
+    if (r.error) return res.status(400).json(r);
+    res.json(r);
+  });
+
+  app.post('/api/friends/:id/reject', (req, res) => {
+    const r = respondFriendRequest(Number(req.params.id), meOwner(req), false);
+    if (r.error) return res.status(400).json(r);
+    res.json(r);
+  });
+
+  app.delete('/api/friends/:id', (req, res) => {
+    const r = removeFriend(Number(req.params.id), meOwner(req));
+    if (r.error) return res.status(400).json(r);
+    res.json(r);
+  });
+
+  // ── 聊天(好友私聊 + 机器人)──
+  // 仅允许给好友发消息;机器人所有人可用
+  const canChat = (me, peer) => peer === BOT_OWNER || areFriends(me, peer);
+
+  app.get('/api/chat/conversations', (req, res) => {
+    const me = meOwner(req);
+    res.json({ me, conversations: listConversations(me), unread: totalChatUnread(me) });
+  });
+
+  app.get('/api/chat/:peer/messages', (req, res) => {
+    const me = meOwner(req);
+    const peer = String(req.params.peer);
+    if (!canChat(me, peer)) return res.status(403).json({ error: '只能和好友聊天' });
+    const messages = listChatMessages(me, peer, { sinceId: Number(req.query.since) || 0 });
+    res.json({ messages });
+  });
+
+  app.post('/api/chat/:peer/messages', express.json(), (req, res) => {
+    const me = meOwner(req);
+    const peer = String(req.params.peer);
+    const text = String(req.body?.text || '').trim();
+    if (!text) return res.status(400).json({ error: '消息不能为空' });
+    if (text.length > 2000) return res.status(400).json({ error: '消息太长啦' });
+    if (!canChat(me, peer)) return res.status(403).json({ error: '只能和好友聊天' });
+    const message = addChatMessage(me, peer, text);
+    sendToOwner(peer, 'chat', { peer: me, message });
+    // 机器人:异步处理,回复通过 SSE 送达
+    if (peer === BOT_OWNER) handleAppBot(me, text).catch((e) => console.warn('[机器人]', e.message));
+    res.json({ message });
+  });
+
+  app.post('/api/chat/:peer/read', (req, res) => {
+    markChatRead(meOwner(req), String(req.params.peer));
     res.json({ ok: true });
   });
 
@@ -451,6 +611,7 @@ export function startWeb() {
       },
       countdown: { time: su.countdown_time || config.countdownNotifyTime },
       background: su.background || '',
+      groupWhitelist: getGroupWhitelist(owner),
       push: { kind: su.push_kind || '', hasKey: Boolean(su.push_key) },
       countdowns: listCountdowns(owner).map((c) => ({ ...c, id: Number(c.id) })),
       pomodoro: {
@@ -487,6 +648,15 @@ export function startWeb() {
       return res.status(400).json({ error: 'type 应为 schedule / weather / countdown' });
     }
     res.json({ ok: true, times });
+  });
+
+  // QQ 群白名单:白名单内的群「全部消息」都会处理;其它群仅 @机器人 才处理
+  app.post('/api/group-whitelist', express.json(), (req, res) => {
+    const owner = req.user.isAdmin ? 'qq:1487138742' : req.user.owner;
+    const raw = Array.isArray(req.body?.groups) ? req.body.groups : String(req.body?.groups || '').split(/[\s,]+/);
+    const groups = raw.map((g) => String(g).trim().replace(/\D/g, '')).filter(Boolean).slice(0, 50);
+    upsertScheduleUser(owner, { groupWhitelist: JSON.stringify(groups) });
+    res.json({ ok: true, groups });
   });
 
   // 总览:看板首页聚合数据(天气/明日课程/倒计时/番茄/待办/自动化时间表)
@@ -562,7 +732,7 @@ export function startWeb() {
       runningPomodoro: running,
       dueTodos: openDue,
       weather: weather ? { text: weather, code: weatherCode } : null,
-      announcements: listAnnouncements(5),
+      announcements: listAnnouncementsFor(me.isAdmin ? 'qq:1487138742' : me.owner, 5),
       status: { ...liveStatus, llm: config.llm.enabled, bark: Boolean(config.barkUrl), pushdeer: Boolean(config.pushDeerKey) },
       scheduleTimes: {
         weather: config.weather.city ? config.weather.notifyTime : null,
@@ -601,12 +771,12 @@ export function startWeb() {
   });
 
   // 上传课表文件(xlsx)导入:学生导入给自己,管理员可用 ?owner= 指定
-  app.post('/api/schedule/import', express.raw({ type: () => true, limit: '10mb' }), (req, res) => {
+  app.post('/api/schedule/import', express.raw({ type: () => true, limit: '15mb' }), async (req, res) => {
     const owner = req.user.isAdmin ? String(req.query.owner || '').trim() : req.user.owner;
     if (!/^\w+:.+$/.test(owner)) return res.status(400).json({ error: '缺少 owner 参数(如 ?owner=qq:1487138742)' });
     try {
-      const items = parseWorkbook(req.body);
-      if (!items.length) return res.status(400).json({ error: '文件里没解析出课程,请确认是教务系统导出的课表' });
+      const items = await parseScheduleUpload(req.body);
+      if (!items.length) return res.status(400).json({ error: '没解析出课程:表格请确认是教务导出的课表;图片请上传清晰的课表截图' });
       upsertScheduleUser(owner, {});
       replaceSchedule(owner, items);
       res.json({ ok: true, count: items.length });
@@ -639,6 +809,7 @@ export function startWeb() {
     });
     res.write('retry: 3000\n\n');
     sseClients.add(res);
+    sseOwners.set(res, req.user?.isAdmin ? 'qq:1487138742' : req.user?.owner);
     // 补发当前快照
     res.write(`event: status\ndata: ${JSON.stringify({ ...liveStatus, llm: config.llm.enabled, wechatEnabled: config.wechat.enabled })}\n\n`);
     res.write(`event: qr\ndata: ${JSON.stringify({ hasQr: Boolean(qrSvg) })}\n\n`);
@@ -648,6 +819,7 @@ export function startWeb() {
     req.on('close', () => {
       clearInterval(keepalive);
       sseClients.delete(res);
+      sseOwners.delete(res);
     });
   });
 

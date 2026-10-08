@@ -2,7 +2,7 @@ import { WebSocketServer } from 'ws';
 import { config } from './config.js';
 import { handleIncoming } from './todo.js';
 import { setStatus } from './events.js';
-import { getScheduleUser } from './db.js';
+import { getScheduleUser, getGroupWhitelist } from './db.js';
 
 /**
  * OneBot v11 反向 WebSocket 服务端。
@@ -112,9 +112,13 @@ function onPayload(ws, state, data) {
   const senderName = data.sender?.card || data.sender?.nickname || senderId;
   const chatName = isGroup ? `群:${data.group_id}` : senderName;
 
-  if (isGroup && !personal) {
-    const inWhitelist = config.onebot.groupWhitelist.includes(String(data.group_id));
-    if (!config.onebot.processAllGroup && !inWhitelist && !mentioned) return;
+  // 群白名单:优先用"用户自己设置的"(个人机器人→本人;共享机器人→发送者),没设则用全局
+  if (isGroup) {
+    const wlOwner = personal ? `qq:${state.selfId}` : `qq:${senderId}`;
+    const userWl = getGroupWhitelist(wlOwner);
+    const wl = userWl.length ? userWl : config.onebot.groupWhitelist;
+    const inWhitelist = config.onebot.processAllGroup || wl.includes(String(data.group_id));
+    if (!inWhitelist && !mentioned) return; // 不在白名单的群:仅 @机器人 才处理
   }
 
   handleIncoming({

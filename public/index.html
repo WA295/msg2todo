@@ -171,8 +171,32 @@
   /* ── 顶部/底部导航 ── */
   .vtabs { display: flex; gap: 6px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
   .vtabs::-webkit-scrollbar { display: none; }
-  .vtab { border: none; background: var(--fill); padding: 9px 18px; border-radius: 999px; cursor: pointer; font-size: 13.5px; color: var(--text); white-space: nowrap; transition: all .2s; }
+  .vtab { border: none; background: var(--fill); padding: 9px 18px; border-radius: 999px; cursor: pointer; font-size: 13.5px; color: var(--text); white-space: nowrap; transition: all .2s; position: relative; }
   .vtab.on { background: var(--accent); color: #fff; font-weight: 600; }
+  .vtab .chdot { position: absolute; top: 1px; right: 6px; background: #ff3b30; color: #fff; font-size: 9px; font-weight: 700; min-width: 15px; height: 15px; line-height: 15px; text-align: center; padding: 0 4px; border-radius: 8px; box-sizing: border-box; }
+
+  /* ── 聊天 ── */
+  .chat-msgs { display: flex; flex-direction: column; gap: 8px; padding: 8px 2px; min-height: 180px; max-height: 56vh; overflow-y: auto; }
+  .chat-msg { max-width: 78%; padding: 9px 13px; border-radius: 16px; font-size: 14.5px; line-height: 1.45; word-break: break-word; white-space: pre-wrap; }
+  .chat-msg.me { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 5px; }
+  .chat-msg.you { align-self: flex-start; background: var(--fill); color: var(--text); border-bottom-left-radius: 5px; }
+  .chat-msg .cm-time { display: block; font-size: 10.5px; opacity: .65; margin-top: 3px; }
+  .chat-row { display: flex; align-items: center; gap: 10px; padding: 11px 4px; border-bottom: .5px solid var(--line); cursor: pointer; }
+  .chat-row:last-child { border-bottom: none; }
+  .chat-row .cavatar { width: 38px; height: 38px; border-radius: 50%; background: var(--fill); display: flex; align-items: center; justify-content: center; font-size: 19px; flex: none; }
+  .chat-row .cmain { flex: 1; min-width: 0; }
+  .chat-row .cname { font-weight: 600; font-size: 14.5px; }
+  .chat-row .clast { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .chat-row .cunread { background: #ff3b30; color: #fff; font-size: 11px; font-weight: 700; min-width: 18px; height: 18px; line-height: 18px; text-align: center; border-radius: 9px; padding: 0 5px; box-sizing: border-box; }
+
+  /* ── 留言回复 ── */
+  .replies-box { margin-top: 10px; padding-left: 11px; border-left: 2px solid var(--line); }
+  .reply { margin: 7px 0; font-size: 13.5px; line-height: 1.5; }
+  .reply .rname { font-weight: 600; }
+  .reply .rtime { color: var(--muted); font-size: 11px; margin-left: 6px; }
+  .reply .rdel { border: none; background: transparent; color: #c7c7cc; cursor: pointer; font-size: 12px; margin-left: 6px; }
+  .replybar { display: flex; gap: 8px; margin-top: 9px; }
+  .replybar input { flex: 1; min-width: 0; }
 
   /* ── 课表 ── */
   .s-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
@@ -188,12 +212,14 @@
 
   /* ── 待办 ── */
   .list { list-style: none; }
-  form.add { display: grid; grid-template-columns: 1fr 130px 110px 110px auto; gap: 8px; align-items: center; }
-  form.add input, form.add select { padding: 10px 12px; border: none; border-radius: 12px; font-size: 14px; outline: none; background: var(--fill); color: var(--text); }
+  form.add { display: grid; grid-template-columns: minmax(0, 1fr) 130px 110px 110px auto; gap: 8px; align-items: center; }
+  form.add input, form.add select { width: 100%; min-width: 0; padding: 10px 12px; border: none; border-radius: 12px; font-size: 14px; outline: none; background: var(--fill); color: var(--text); }
   form.add input:focus, form.add select:focus { box-shadow: 0 0 0 2px var(--accent); }
   @media (max-width: 720px) {
-    form.add { grid-template-columns: 1fr 1fr; }
-    form.add .btn { grid-column: span 2; }
+    form.add { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    form.add #fTitle,
+    form.add #fNotes,
+    form.add .btn { grid-column: 1 / -1; width: 100%; }
   }
   .todo { display: flex; gap: 12px; align-items: flex-start; padding: 16px; background: var(--card); border-radius: 18px; margin-bottom: 10px; transition: all .2s; box-shadow: var(--shadow); }
   .todo.done { opacity: .55; }
@@ -249,10 +275,14 @@
   .modal-card .btn { margin-top: 14px; }
   .qr-hint { font-size: 13px; color: var(--accent); margin-top: 10px; }
 
+  /* ── 轻提示(toast)── */
+  #toast { position: fixed; left: 50%; bottom: 104px; transform: translateX(-50%) translateY(16px); background: rgba(0, 0, 0, .84); color: #fff; padding: 10px 18px; border-radius: 12px; font-size: 13.5px; line-height: 1.4; opacity: 0; pointer-events: none; transition: all .25s var(--ease-smooth); z-index: 100; max-width: 86vw; text-align: center; box-shadow: var(--shadow-lg); }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
   /* ── 移动端底部 Tab Bar(iOS 毛玻璃)── */
   .bottom-nav { display: none; }
   @media (max-width: 640px) {
-    .wrap { padding: 0 12px 96px; }
+    .wrap { padding: 0 12px calc(118px + env(safe-area-inset-bottom, 0px)); }
     header { padding: 12px 16px 10px; margin: 0 -12px 14px; }
     .hero h1 { font-size: 24px; }
     .stats-row { grid-template-columns: repeat(2, 1fr); gap: 8px; }
@@ -262,12 +292,15 @@
     .bottom-nav {
       display: flex;
       position: fixed;
-      left: 0; right: 0; bottom: 0;
+      left: 10px; right: 10px;
+      bottom: calc(12px + env(safe-area-inset-bottom, 0px));
       background: var(--glass);
       backdrop-filter: saturate(180%) blur(20px);
       -webkit-backdrop-filter: saturate(180%) blur(20px);
-      border-top: .5px solid var(--line);
-      padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+      border: .5px solid var(--line);
+      border-radius: 22px;
+      padding: 7px 6px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, .18);
       z-index: 40;
       justify-content: space-around;
     }
@@ -320,6 +353,8 @@
     <button class="vtab" data-v="sched">📚 课表</button>
     <button class="vtab" data-v="res">📖 学习资源</button>
     <button class="vtab" data-v="board">💬 留言板</button>
+    <button class="vtab" data-v="friends">👋 好友</button>
+    <button class="vtab" data-v="chat">💬 聊天</button>
     <button class="vtab" data-v="settings">⚙️ 设置</button>
   </div>
 
@@ -329,6 +364,8 @@
     <button class="vtab" data-v="sched"><span class="bicon">📚</span>课表</button>
     <button class="vtab" data-v="res"><span class="bicon">📖</span>资源</button>
     <button class="vtab" data-v="board"><span class="bicon">💬</span>留言板</button>
+    <button class="vtab" data-v="friends"><span class="bicon">👋</span>好友</button>
+    <button class="vtab" data-v="chat"><span class="bicon">💬</span>聊天</button>
     <button class="vtab" data-v="settings"><span class="bicon">⚙️</span>设置</button>
   </nav>
 
@@ -371,7 +408,13 @@
 
   <div id="boardView" style="display:none"></div>
 
+  <div id="friendsView" style="display:none"></div>
+
+  <div id="chatView" style="display:none"></div>
+
   <div id="settingsView" style="display:none"></div>
+
+  <div id="helpView" style="display:none"></div>
 </div>
 
 <div class="modal" id="qrModal" style="display:none">
@@ -409,13 +452,21 @@
 
 <div class="modal" id="authModal" style="display:none">
   <div class="modal-card" style="text-align:left; min-width:min(340px, 90vw)">
-    <h3 style="text-align:center">🔒 登录</h3>
-    <div class="sub" style="text-align:center">学生输入自己的 QQ 号绑定,数据互不可见</div>
+    <h3 style="text-align:center">📝 登录 iTodo</h3>
+    <div class="sub" style="text-align:center; margin-bottom:14px">用你的 QQ 号登录,待办 / 课表 / 提醒按账号隔离</div>
     <input id="bindQq" type="tel" placeholder="你的 QQ 号" style="width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:8px; font-size:14px; outline:none" />
-    <button class="btn" id="bindBtn" style="width:100%; margin-top:10px">学生登录</button>
-    <div class="sub" style="margin:14px 0 6px; text-align:center; border-top:1px dashed var(--line); padding-top:12px">管理员</div>
-    <input id="authToken" type="password" placeholder="管理员密码" style="width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:8px; font-size:14px; outline:none" />
-    <button class="btn" id="authSave" style="width:100%; margin-top:10px">管理员登录</button>
+    <button class="btn" id="bindBtn" style="width:100%; margin-top:10px">登录 / 注册</button>
+    <div class="sub" style="text-align:center; margin-top:12px; font-size:12px">首次登录会自动创建账号</div>
+  </div>
+</div>
+
+<div class="modal" id="adminModal" style="display:none">
+  <div class="modal-card" style="text-align:left; min-width:min(320px, 90vw)">
+    <h3 style="text-align:center">🔑 管理员登录</h3>
+    <div class="sub" style="text-align:center; margin-bottom:14px">输入管理员密码,管理全部用户、公告与数据</div>
+    <input id="adminPass" type="password" placeholder="管理员密码" style="width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:8px; font-size:14px; outline:none" />
+    <button class="btn" id="adminBtn" style="width:100%; margin-top:10px">登录</button>
+    <button class="btn" id="adminCancel" style="width:100%; margin-top:8px; background:var(--fill); color:var(--text)">取消</button>
   </div>
 </div>
 
@@ -445,12 +496,29 @@ window.fetch = (input, init) => {
   });
 };
 
-// 访问密码/绑定弹窗
-$('#authSave').onclick = () => {
-  localStorage.setItem('token', $('#authToken').value.trim());
-  location.reload();
+// 管理员登录(入口在「设置」页,验证通过后写入令牌)
+$('#adminBtn').onclick = async () => {
+  const v = $('#adminPass').value.trim();
+  if (!v) { alert('请输入管理员密码'); return; }
+  $('#adminBtn').textContent = '登录中…';
+  try {
+    const res = await rawFetch(`${BASE}/api/me`, { headers: { 'x-auth-token': v } });
+    const d = await res.json().catch(() => ({}));
+    if (res.ok && d.isAdmin) {
+      localStorage.setItem('token', v);
+      localStorage.removeItem('me');
+      location.reload();
+    } else {
+      alert('密码错误,或该账号不是管理员');
+      $('#adminBtn').textContent = '登录';
+    }
+  } catch (e) {
+    alert('网络错误:' + e.message);
+    $('#adminBtn').textContent = '登录';
+  }
 };
-$('#authToken').onkeydown = (e) => { if (e.key === 'Enter') $('#authSave').click(); };
+$('#adminPass').onkeydown = (e) => { if (e.key === 'Enter') $('#adminBtn').click(); };
+$('#adminCancel').onclick = () => { $('#adminModal').style.display = 'none'; };
 $('#bindBtn').onclick = async () => {
   const qq = $('#bindQq').value.trim();
   if (!/^\d{5,12}$/.test(qq)) { alert('请输入正确的 QQ 号(5~12 位数字)'); return; }
@@ -467,12 +535,12 @@ $('#bindBtn').onclick = async () => {
       localStorage.setItem('me', JSON.stringify({ name: d.name, owner: d.owner }));
       location.reload();
     } else {
-      alert('绑定失败:' + (d.error || res.status));
-      $('#bindBtn').textContent = '学生登录';
+      alert('登录失败:' + (d.error || res.status));
+      $('#bindBtn').textContent = '登录 / 注册';
     }
   } catch (e) {
     alert('网络错误:' + e.message);
-    $('#bindBtn').textContent = '学生登录';
+    $('#bindBtn').textContent = '登录 / 注册';
   }
 };
 
@@ -515,6 +583,20 @@ function el(tag, cls, text) {
   if (text !== undefined) n.textContent = text;
   return n;
 }
+
+/* 轻提示:操作有明确反馈 */
+let _toastTm = null;
+function toast(msg) {
+  let t = document.getElementById('toast');
+  if (!t) { t = el('div'); t.id = 'toast'; document.body.appendChild(t); }
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(_toastTm);
+  _toastTm = setTimeout(() => t.classList.remove('show'), 2200);
+}
+// 把原本被静默吞掉的错误显示出来,便于定位问题
+window.addEventListener('error', (e) => { try { toast('⚠️ ' + (e.message || '出错了')); } catch {} });
+window.addEventListener('unhandledrejection', (e) => { const r = e.reason; try { toast('⚠️ ' + ((r && r.message) || r || '出错了')); } catch {} });
 
 function render(todos) {
   const list = $('#list');
@@ -595,6 +677,25 @@ function connectSSE() {
     sseTimer = setTimeout(() => { load(); loadSchedule(); loadHome(); }, 500);
   });
   es.addEventListener('status', (e) => renderStatus(JSON.parse(e.data)));
+  es.addEventListener('chat', (e) => {
+    const d = JSON.parse(e.data);
+    if (chat.peer && d.peer === chat.peer && $('#chatMsgs')) {
+      const m = d.message;
+      if (m.id > chat.lastId) {
+        chat.lastId = m.id;
+        const mine = m.from_owner !== chat.peer;
+        const b = el('div', 'chat-msg ' + (mine ? 'me' : 'you'), m.text);
+        b.appendChild(el('span', 'cm-time', fmtChatTime(m.created_at)));
+        $('#chatMsgs').appendChild(b);
+        $('#chatMsgs').scrollTop = $('#chatMsgs').scrollHeight;
+      }
+      if (m.from_owner === chat.peer) fetch(`/api/chat/${encodeURIComponent(chat.peer)}/read`, { method: 'POST' }).catch(() => {});
+    } else if ($('#chatView').style.display !== 'none') {
+      loadChat();
+    }
+    refreshChatUnread();
+  });
+  es.addEventListener('weather', () => { loadHome(); });
   es.addEventListener('qr', (e) => {
     const d = JSON.parse(e.data);
     if (d.hasQr) showQr();
@@ -654,6 +755,7 @@ $('#wxBtn').onclick = () => {
 
 connectSSE();
 setInterval(() => { load(); loadHome(); }, 30000);
+refreshChatUnread();
 fetch('/api/status').then((r) => r.json()).then(renderStatus);
 load();
 // 注册推送 Service Worker
@@ -783,13 +885,20 @@ async function openCtrl(id, title, ctx) {
     return;
   }
   body.innerHTML = '';
-  const post = async (url, data) => {
-    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data || {}) });
-    const d = await r.json().catch(() => ({}));
-    if (!r.ok) { alert(d.error || '操作失败'); return false; }
-    loadHome();
-    loadSchedule();
-    return true;
+  const post = async (url, data, okMsg) => {
+    try {
+      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data || {}) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { toast('❌ ' + (d.error || '操作失败')); return false; }
+      toast(okMsg || '✅ 已保存');
+      loadHome();
+      loadSchedule();
+      loadSettings();
+      return true;
+    } catch (e) {
+      toast('❌ 保存失败:' + e.message);
+      return false;
+    }
   };
   const mkInput = (ph, val) => { const i = el('input'); i.className = 'search'; i.placeholder = ph; i.value = val || ''; return i; };
   const mkBtn = (text, onClick, cls = 'btn') => { const b = el('button', cls, text); b.onclick = onClick; return b; };
@@ -1018,6 +1127,14 @@ async function openCtrl(id, title, ctx) {
 Windows 推荐 <b>LLOneBot</b>(QQNT 插件):设置 → 反向 WebSocket 填上面地址+令牌<br>
 详细教程见 iTodo 仓库 <code>docs/个人QQ机器人.md</code>`;
     body.appendChild(info);
+  } else if (id === 'grouplist') {
+    body.appendChild(el('div', 'sub', '白名单里的群:机器人处理该群的「全部消息」;其它群:只有 @机器人 时才处理。留空 = 所有群都只 @机器人 才处理。'));
+    const wl = s.groupWhitelist || [];
+    const i = mkInput('群号,多个用逗号分隔,如 123456,789012', wl.join(','));
+    body.appendChild(row('群号', i));
+    body.appendChild(mkBtn('💾 保存', async () => { if (await post('/api/group-whitelist', { groups: i.value })) openCtrl('grouplist', '🏘️ QQ 群白名单'); }));
+    body.appendChild(mkBtn('🗑 清空', async () => { if (await post('/api/group-whitelist', { groups: [] })) openCtrl('grouplist', '🏘️ QQ 群白名单'); }, 'mini-btn'));
+    if (wl.length) body.appendChild(el('div', 'sub', `当前:${wl.join('、')}`));
   } else if (id === 'bg') {
     const PRESETS = [
       { name: '默认灰白', css: '' },      { name: 'iTodo 蓝', css: 'linear-gradient(135deg, #53c0ff, #007aff)' },
@@ -1196,6 +1313,15 @@ function renderHome(d) {
       const left = el('div');
       left.appendChild(el('b', null, a.title));
       left.appendChild(el('div', 'sub', a.content));
+      const okBtn = el('button', 'mini-btn', '✔ 我知道了');
+      okBtn.style.marginTop = '8px';
+      okBtn.onclick = async () => {
+        okBtn.disabled = true;
+        okBtn.textContent = '处理中…';
+        await fetch(`/api/announcements/${a.id}/dismiss`, { method: 'POST' });
+        loadHome();
+      };
+      left.appendChild(okBtn);
       item.appendChild(left);
       item.appendChild(el('span', 'sub', new Date(a.created_at).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })));
       acard.appendChild(item);
@@ -1305,7 +1431,7 @@ function renderHome(d) {
   const grid = el('div', 'feat-grid');
   const feats = [
     { icon: '📝', name: '待办', desc: 'QQ 消息自动提取 / 手动添加', cmd: '发消息或手动加', v: 'todo' },
-    { icon: '📚', name: '课表', desc: '发文本或 xlsx 文件导入,每晚提醒', cmd: '点击上传文件', v: 'sched' },
+    { icon: '📚', name: '课表', desc: '文本 / 文件 / 课表截图导入', cmd: '点击上传', v: 'sched' },
     { icon: '🍅', name: '番茄钟', desc: '专注计时,到点提醒', cmd: '点击开始专注', ctrl: ['pomo', '🍅 番茄钟'] },
     { icon: '🌤', name: '天气', desc: '每日天气+带伞提示', cmd: '点击设置城市', ctrl: ['weather', '🌤 天气'] },
     { icon: '📢', name: '公告', desc: '发布公告,全员广播', cmd: '点击发布', ctrl: ['ann', '📢 公告'], adminOnly: true },
@@ -1315,12 +1441,14 @@ function renderHome(d) {
     { icon: '📊', name: '每周回顾', desc: '周日自动总结本周', cmd: '自动推送', v: null },
     { icon: '🌙', name: '提醒设置', desc: '睡觉/课表/开学日期/上课提醒', cmd: '点击设置', ctrl: ['remind', '⏰ 提醒设置'] },
     { icon: '🔔', name: '手机推送', desc: d.status.bark ? 'Bark 已绑定 ✓' : '绑定 Bark/PushDeer', cmd: '点击绑定', ctrl: ['pushbind', '🔔 手机推送'] },
+    { icon: '📖', name: '使用帮助', desc: '新手指引 · 全部功能说明', cmd: '点击查看', fn: 'help' },
   ];
   for (const f of feats) {
     if (f.adminOnly && !window.ME?.isAdmin) continue;
     const c = vcard('feat', el('div', 'icon', f.icon), el('div', 'name', f.name), el('div', 'desc', f.desc), el('span', 'cmd', f.cmd));
     if (f.v) c.onclick = () => { document.querySelector(`.vtab[data-v="${f.v}"]`).click(); };
     else if (f.ctrl) c.onclick = () => openCtrl(f.ctrl[0], f.ctrl[1]);
+    else if (f.fn === 'help') c.onclick = () => openHelp();
     grid.appendChild(c);
   }
   fcard.appendChild(grid);
@@ -1530,6 +1658,8 @@ function renderBoard(posts) {
     head.appendChild(headR);
     card.appendChild(head);
     card.appendChild(el('div', 't-title', p.content));
+    const replies = p.replies || [];
+
     if (p.mine) {
       const del = el('button', 'mini-btn', '删除');
       del.style.marginTop = '8px';
@@ -1540,6 +1670,60 @@ function renderBoard(posts) {
       };
       card.appendChild(del);
     }
+
+    // 已有回复
+    if (replies.length) {
+      const rbox = el('div', 'replies-box');
+      for (const rep of replies) {
+        const line = el('div', 'reply');
+        line.appendChild(el('span', 'rname', `${rep.name || '同学'}: `));
+        line.appendChild(document.createTextNode(rep.content));
+        line.appendChild(el('span', 'rtime', new Date(rep.created_at).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })));
+        if (rep.mine) {
+          const rd = el('button', 'rdel', '删除');
+          rd.onclick = async () => {
+            if (!confirm('删除这条回复?')) return;
+            await fetch(`/api/post-replies/${rep.id}`, { method: 'DELETE' });
+            loadBoard();
+          };
+          line.appendChild(rd);
+        }
+        rbox.appendChild(line);
+      }
+      card.appendChild(rbox);
+    }
+
+    // 回复入口 + 输入框(默认收起)
+    const rlink = el('button', 'mini-btn', '💬 回复' + (replies.length ? ` (${replies.length})` : ''));
+    rlink.style.marginTop = '8px';
+    const rbar = el('div', 'replybar');
+    rbar.style.display = 'none';
+    const rinp = el('input');
+    rinp.className = 'search';
+    rinp.placeholder = '写下回复…';
+    const rbtn = el('button', 'btn', '发送');
+    rbtn.onclick = async () => {
+      const c = rinp.value.trim();
+      if (!c) return;
+      rbtn.disabled = true;
+      rbtn.textContent = '发送中…';
+      const r = await fetch(`/api/posts/${p.id}/replies`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: c }),
+      });
+      if (r.ok) { rinp.value = ''; loadBoard(); }
+      else { alert('回复失败'); rbtn.disabled = false; rbtn.textContent = '发送'; }
+    };
+    rinp.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); rbtn.click(); } };
+    rlink.onclick = () => {
+      const open = rbar.style.display !== 'none';
+      rbar.style.display = open ? 'none' : 'flex';
+      if (!open) rinp.focus();
+    };
+    rbar.appendChild(rinp);
+    rbar.appendChild(rbtn);
+    card.appendChild(rlink);
+    card.appendChild(rbar);
+
     box.appendChild(card);
   }
 }
@@ -1576,6 +1760,15 @@ function renderSettings(s) {
   const acc = scard('👤 账号');
   const meName = window.ME?.isAdmin ? '管理员' : (window.ME?.name || '同学');
   acc.appendChild(srow('🆔', '当前身份', meName, null));
+  if (window.ME?.isAdmin) {
+    acc.appendChild(srow('🛡️', '管理员权限', '已开启', null));
+  } else {
+    acc.appendChild(srow('🔑', '管理员登录', '管理全部用户 / 公告', () => {
+      $('#adminPass').value = '';
+      $('#adminModal').style.display = 'flex';
+      setTimeout(() => { try { $('#adminPass').focus(); } catch {} }, 50);
+    }));
+  }
   acc.appendChild(srow('↩️', '退出登录', '', () => { localStorage.removeItem('token'); localStorage.removeItem('me'); location.reload(); }));
   frag.appendChild(acc);
 
@@ -1613,6 +1806,7 @@ function renderSettings(s) {
   // 服务器
   const srv = scard('⚙️ 服务器');
   srv.appendChild(srow('🤖', '个人 QQ 机器人', '用自己的 QQ 连 iTodo', () => openCtrl('qqbot', '🤖 个人 QQ 机器人')));
+  srv.appendChild(srow('🏘️', 'QQ 群白名单', (s.groupWhitelist && s.groupWhitelist.length) ? `${s.groupWhitelist.length} 个群` : '未设置', () => openCtrl('grouplist', '🏘️ QQ 群白名单')));
   const sInput = el('input');
   sInput.className = 'search';
   sInput.placeholder = '如 http://182.92.163.6:8080';
@@ -1635,18 +1829,120 @@ function renderSettings(s) {
   ui.appendChild(srow('🖼', '自定义背景', '渐变 / 颜色 / 图片', () => openCtrl('bg', '🎨 背景')));
   frag.appendChild(ui);
 
+  // 帮助
+  const hcard = scard('📖 帮助');
+  hcard.appendChild(srow('📖', '使用帮助', '新手指引 / 全部功能说明', () => openHelp()));
+  frag.appendChild(hcard);
+
   // 管理员:备份
   if (window.ME?.isAdmin) {
     const bk = scard('💾 数据');
-    const a = el('a', 'set-row', el('span', 'sicon', '💾'), el('span', 'sname', '下载数据备份'), el('span', 'sval', '云端每日自动备份'), el('span', 'arrow', '›'));
+    const a = el('a', 'set-row');
     a.href = `${BASE}/api/backup?token=${encodeURIComponent(AUTH)}`;
     a.style.textDecoration = 'none';
     a.style.color = 'var(--text)';
+    a.appendChild(el('span', 'sicon', '💾'));
+    a.appendChild(el('span', 'sname', '下载数据备份'));
+    a.appendChild(el('span', 'sval', '云端每日自动备份'));
+    a.appendChild(el('span', 'arrow', '›'));
     bk.appendChild(a);
     frag.appendChild(bk);
   }
 
   box.appendChild(frag);
+}
+
+/* ================= 使用帮助 ================= */
+const HELP_SECTIONS = [
+  ['🚀 快速开始', [
+    '打开 iTodo → 输入自己的 QQ 号登录(数据每人独立、互不可见)',
+    '首页点「🔔 开启推送」→ 提醒直达手机锁屏',
+    'QQ 消息里的作业/通知会自动变成你的待办',
+  ]],
+  ['📝 待办', [
+    '手动添加:「待办」页输入标题 + 截止时间 + 优先级即可',
+    '自动提取:机器人从 QQ 消息里识别任务,自动入库',
+    '多级提醒:到期、提前 60 分钟、提前 3天/1天/3小时',
+    '筛选与搜索:未完成 / 已完成 / 全部,可按标题、备注、来源搜索',
+  ]],
+  ['📚 课表', [
+    '在「课表」页上传课表(网格/列表文件 xlsx/xls/csv,或课表截图 jpg/png),自动识别入库',
+    '图片识别失败?用「豆包」等 AI 识别课表图片,再把文字粘贴发给机器人即可导入',
+    '每晚 21:00 自动提醒第二天的课程',
+    '上课前 10 分钟再提醒一次',
+    '支持单双周 / 指定周次',
+  ]],
+  ['🔔 提醒与推送', [
+    '开启推送:首页「🔔 开启推送」,或「设置 → 手机推送」绑 Bark(iOS)/ PushDeer(安卓)',
+    '自定义时间:「设置 → 课表/天气 → 提醒时段」可设多个时段(最多 3 个)',
+    '推送通道:Web Push + Bark/PushDeer + QQ 私聊(多通道并行)',
+  ]],
+  ['💬 聊天与好友', [
+    '加好友:「好友」页输入对方 QQ 号或昵称搜索 → 发送请求',
+    '私聊:「聊天」页和好友实时聊天,有未读红点',
+    '和机器人对话:给机器人发「番茄 25」「天气」等指令',
+  ]],
+  ['🌤 天气', [
+    '设置城市:「设置 → 天气」填城市(如 沈阳),每天自动推送今日+明日天气',
+    '可自定义推送时间;更新后 App 内实时刷新',
+  ]],
+  ['🍅 番茄钟 · ⏳ 倒计时 · 📦 快递', [
+    '番茄钟:设置专注/休息时长与轮数,到点提醒',
+    '倒计时:添加考试/放假日期,每天推送剩余天数,考前 7/3/1 天重点提醒',
+    '快递:记录取件码,取完标记(也可让机器人自动识别快递短信)',
+  ]],
+  ['🏘️ QQ 群白名单', [
+    '「设置 → QQ 群白名单」填群号(多个用逗号分隔)',
+    '白名单内的群:所有消息都会被处理',
+    '其它群:只有 @机器人 时才处理;留空 = 都只 @机器人',
+  ]],
+  ['🤖 个人 QQ 机器人', [
+    '用自己的 QQ 连上 iTodo,收到的消息自动变成你自己的待办',
+    '入口:「设置 → 个人 QQ 机器人」(含详细接入教程)',
+  ]],
+  ['💬 指令速查(QQ 私聊机器人)', [
+    '课表 / 我的课表 / 明天什么课',
+    '番茄 25 / 停止番茄',
+    '天气 / 设置天气 沈阳 / 天气提醒 07:30',
+    '快递 8-1234 丰巢 / 取完 1',
+    '倒计时 12月12日 四六级',
+    '睡觉提醒 23:00 / 开学日期 2026-02-23',
+  ]],
+  ['❓ 常见问题', [
+    '收不到推送?先「开启推送」或绑定 Bark/PushDeer',
+    '机器人不回?可能机器人在线失败,但待办仍可在 App 手动添加',
+    '想改设置?全部在「⚙️ 设置」页自己改,改完即时生效',
+  ]],
+];
+
+function openHelp() {
+  const views = { home: 'homeView', todo: 'todoView', sched: 'scheduleView', res: 'resourceView', board: 'boardView', friends: 'friendsView', chat: 'chatView', settings: 'settingsView', help: 'helpView' };
+  document.querySelectorAll('.vtab').forEach((b) => b.classList.remove('on'));
+  for (const [k, id] of Object.entries(views)) { const n = document.getElementById(id); if (n) n.style.display = k === 'help' ? '' : 'none'; }
+  renderHelp();
+  window.scrollTo(0, 0);
+}
+
+function renderHelp() {
+  const box = $('#helpView');
+  box.innerHTML = '';
+  const head = el('div', 'card');
+  const back = el('button', 'mini-btn', '‹ 返回');
+  back.onclick = () => { document.querySelector('.vtab[data-v="home"]').click(); };
+  head.appendChild(back);
+  head.appendChild(el('span', 'h2', '📖 使用帮助'));
+  box.appendChild(head);
+  for (const [title, lines] of HELP_SECTIONS) {
+    const c = el('div', 'card');
+    c.appendChild(el('div', 'h2', title));
+    for (const ln of lines) {
+      const d = el('div', 'sub', '• ' + ln);
+      d.style.margin = '5px 0';
+      d.style.lineHeight = '1.5';
+      c.appendChild(d);
+    }
+    box.appendChild(c);
+  }
 }
 
 /* ================= 课表视图 ================= */
@@ -1658,7 +1954,7 @@ document.querySelectorAll('.vtab').forEach((btn) => {
     document.querySelectorAll('.vtab').forEach((b) => b.classList.remove('on'));
     btn.classList.add('on');
     const v = btn.dataset.v;
-    const views = { home: 'homeView', todo: 'todoView', sched: 'scheduleView', res: 'resourceView', board: 'boardView', settings: 'settingsView' };
+    const views = { home: 'homeView', todo: 'todoView', sched: 'scheduleView', res: 'resourceView', board: 'boardView', friends: 'friendsView', chat: 'chatView', settings: 'settingsView', help: 'helpView' };
     for (const [key, id] of Object.entries(views)) {
       $(`#${id}`).style.display = key === v ? '' : 'none';
     }
@@ -1671,9 +1967,302 @@ document.querySelectorAll('.vtab').forEach((btn) => {
     if (v === 'sched') loadSchedule();
     if (v === 'res') loadResources();
     if (v === 'board') loadBoard();
+    if (v === 'friends') loadFriends();
+    if (v === 'chat') loadChat();
     if (v === 'settings') loadSettings();
   };
 });
+
+/* ================= 聊天 ================= */
+const chat = { peer: null, name: '', lastId: 0 };
+
+function fmtChatTime(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  const now = new Date();
+  const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  if (d.toDateString() === now.toDateString()) return hm;
+  return `${d.getMonth() + 1}/${d.getDate()} ${hm}`;
+}
+
+function setChatUnread(n) {
+  document.querySelectorAll('.vtab[data-v="chat"]').forEach((b) => {
+    const old = b.querySelector('.chdot');
+    if (old) old.remove();
+    if (n > 0) {
+      const s = el('span', 'chdot', n > 99 ? '99+' : String(n));
+      b.appendChild(s);
+    }
+  });
+}
+
+async function refreshChatUnread() {
+  try {
+    const d = await fetch('/api/chat/conversations').then((r) => r.json());
+    setChatUnread(d.unread || 0);
+  } catch {}
+}
+
+async function loadChat() {
+  chat.peer = null;
+  const box = $('#chatView');
+  box.innerHTML = '';
+  box.appendChild(el('div', 'card pre', '加载中…'));
+  let convs = [];
+  let friends = [];
+  try {
+    const [c, f] = await Promise.all([
+      fetch('/api/chat/conversations').then((r) => r.json()),
+      fetch('/api/friends').then((r) => r.json()),
+    ]);
+    convs = c.conversations || [];
+    friends = f.friends || [];
+    setChatUnread(c.unread || 0);
+  } catch {
+    box.innerHTML = '';
+    box.appendChild(el('div', 'card pre', '加载失败,请重试'));
+    return;
+  }
+
+  // 合并:机器人置顶 + 现有会话 + 还没聊过的好友
+  const list = [];
+  const seen = new Set();
+  const botConv = convs.find((c) => c.peer === 'bot');
+  list.push(botConv || { peer: 'bot', name: 'iTodo 机器人', last: null, unread: 0 });
+  seen.add('bot');
+  for (const c of convs) { if (!seen.has(c.peer)) { list.push(c); seen.add(c.peer); } }
+  for (const f of friends) { if (!seen.has(f.owner)) { list.push({ peer: f.owner, name: f.name, last: null, unread: 0 }); seen.add(f.owner); } }
+
+  box.innerHTML = '';
+  const card = el('div', 'card');
+  card.appendChild(el('div', 'h2', '💬 聊天'));
+  for (const c of list) {
+    const row = el('div', 'chat-row');
+    const av = el('div', 'cavatar', c.peer === 'bot' ? '🤖' : (c.name || '?').slice(-2, -1) || (c.name || '?')[0]);
+    const main = el('div', 'cmain');
+    main.appendChild(el('div', 'cname', c.name));
+    if (c.last) {
+      const prefix = c.last.from === 'bot' || c.last.from === c.peer ? '' : '我:';
+      main.appendChild(el('div', 'clast', prefix + String(c.last.text).replace(/\n/g, ' ')));
+    } else {
+      main.appendChild(el('div', 'clast', c.peer === 'bot' ? '发消息给机器人试试～' : '还没有聊天记录'));
+    }
+    row.appendChild(av);
+    row.appendChild(main);
+    if (c.unread) row.appendChild(el('div', 'cunread', String(c.unread)));
+    row.onclick = () => openChat(c.peer, c.name);
+    card.appendChild(row);
+  }
+  box.appendChild(card);
+
+  if (!friends.length) {
+    box.appendChild(el('div', 'card pre', '还没有好友。到「👋 好友」页搜索对方 QQ 号或昵称加好友后,就能在这里私聊。'));
+  }
+}
+
+async function openChat(peer, name) {
+  chat.peer = peer;
+  chat.name = name || peer;
+  chat.lastId = 0;
+  const box = $('#chatView');
+  box.innerHTML = '';
+  const card = el('div', 'card');
+
+  const head = el('div', 'toolbar');
+  const back = el('button', 'mini-btn', '‹ 返回');
+  back.onclick = () => loadChat();
+  head.appendChild(back);
+  head.appendChild(el('span', 'h2', chat.peer === 'bot' ? '🤖 iTodo 机器人' : chat.name));
+  card.appendChild(head);
+
+  const msgs = el('div', 'chat-msgs');
+  msgs.id = 'chatMsgs';
+  card.appendChild(msgs);
+
+  const bar = el('div', 'toolbar');
+  const inp = el('input');
+  inp.className = 'search';
+  inp.placeholder = '输入消息…';
+  inp.id = 'chatInput';
+  const send = el('button', 'btn', '发送');
+  bar.appendChild(inp);
+  bar.appendChild(send);
+  card.appendChild(bar);
+  box.appendChild(card);
+
+  function append(m) {
+    if (m.id <= chat.lastId) return;
+    chat.lastId = m.id;
+    const me = m.from_owner !== chat.peer;
+    const b = el('div', 'chat-msg ' + (me ? 'me' : 'you'), m.text);
+    b.appendChild(el('span', 'cm-time', fmtChatTime(m.created_at)));
+    msgs.appendChild(b);
+    msgs.scrollTop = msgs.scrollHeight;
+  }
+
+  async function sendMsg() {
+    const text = inp.value.trim();
+    if (!text) return;
+    inp.value = '';
+    try {
+      const r = await fetch(`/api/chat/${encodeURIComponent(chat.peer)}/messages`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { alert(d.error || '发送失败'); inp.value = text; return; }
+      append(d.message);
+    } catch (e) {
+      alert('网络错误:' + e.message);
+      inp.value = text;
+    }
+  }
+  send.onclick = sendMsg;
+  inp.onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMsg(); } };
+  inp.focus();
+
+  // 拉取历史
+  try {
+    const d = await fetch(`/api/chat/${encodeURIComponent(chat.peer)}/messages`).then((r) => r.json());
+    for (const m of d.messages || []) append(m);
+    if (!d.messages || !d.messages.length) {
+      msgs.appendChild(el('div', 'sub', chat.peer === 'bot' ? '和机器人说句话吧,比如「明天 9 点交作业」' : '开始聊天吧'));
+    }
+  } catch {}
+  fetch(`/api/chat/${encodeURIComponent(chat.peer)}/read`, { method: 'POST' }).catch(() => {});
+  setChatUnread(0);
+  refreshChatUnread();
+}
+
+/* ================= 好友 ================= */
+function shortId(owner) { return String(owner || '').replace(/^qq:/, ''); }
+
+async function loadFriends() {
+  const box = $('#friendsView');
+  box.innerHTML = '';
+  box.appendChild(el('div', 'card pre', '加载中…'));
+  let d;
+  try {
+    d = await fetch('/api/friends').then((r) => r.json());
+  } catch {
+    box.innerHTML = '';
+    box.appendChild(el('div', 'card pre', '加载失败,请检查网络后重试'));
+    return;
+  }
+  box.innerHTML = '';
+
+  // 添加好友
+  const add = el('div', 'card');
+  add.appendChild(el('div', 'h2', '🔍 添加好友'));
+  const bar = el('div', 'toolbar');
+  const inp = el('input');
+  inp.className = 'search';
+  inp.placeholder = '输入对方 QQ 号或昵称';
+  const sBtn = el('button', 'btn', '搜索');
+  bar.appendChild(inp);
+  bar.appendChild(sBtn);
+  add.appendChild(bar);
+  const results = el('div');
+  add.appendChild(results);
+
+  async function doSearch() {
+    const q = inp.value.trim();
+    if (!q) return;
+    results.innerHTML = '';
+    results.appendChild(el('div', 'sub', '搜索中…'));
+    try {
+      const r = await fetch('/api/friends/search?q=' + encodeURIComponent(q)).then((x) => x.json());
+      results.innerHTML = '';
+      const users = r.users || [];
+      if (!users.length) { results.appendChild(el('div', 'sub', '没有找到用户,确认对方已在 App 里用 QQ 登录过。')); return; }
+      for (const u of users) {
+        const row = el('div', 'toolbar');
+        row.style.marginBottom = '8px';
+        row.appendChild(el('span', 't', `${u.name}(${shortId(u.owner)})`));
+        const label = { friend: '已是好友', outgoing: '已发送', incoming: '待你通过' }[u.relation] || '添加';
+        const b = el('button', u.relation === 'none' ? 'btn' : 'mini-btn', label);
+        if (u.relation === 'none') {
+          b.onclick = async () => {
+            const res = await fetch('/api/friends/request', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ owner: u.owner }),
+            });
+            const rd = await res.json().catch(() => ({}));
+            if (!res.ok) { alert(rd.error || '操作失败'); return; }
+            alert(rd.accepted ? '对方也请求过你,已互相成为好友 ✔' : '好友请求已发送,等待对方通过');
+            loadFriends();
+          };
+        } else {
+          b.disabled = true;
+          b.style.opacity = '.55';
+        }
+        row.appendChild(b);
+        results.appendChild(row);
+      }
+    } catch {
+      results.innerHTML = '';
+      results.appendChild(el('div', 'sub', '搜索失败'));
+    }
+  }
+  sBtn.onclick = doSearch;
+  inp.onkeydown = (e) => { if (e.key === 'Enter') doSearch(); };
+  box.appendChild(add);
+
+  // 收到的请求
+  if (d.incoming && d.incoming.length) {
+    const c = el('div', 'card');
+    c.appendChild(el('div', 'h2', `📥 好友请求(${d.incoming.length})`));
+    for (const r of d.incoming) {
+      const row = el('div', 'toolbar');
+      row.style.marginBottom = '8px';
+      row.appendChild(el('span', 't', `${r.name}(${shortId(r.owner)})`));
+      const ok = el('button', 'btn', '接受');
+      ok.onclick = async () => { await fetch(`/api/friends/${r.id}/accept`, { method: 'POST' }); loadFriends(); };
+      const no = el('button', 'mini-btn', '拒绝');
+      no.onclick = async () => { await fetch(`/api/friends/${r.id}/reject`, { method: 'POST' }); loadFriends(); };
+      row.appendChild(ok);
+      row.appendChild(no);
+      c.appendChild(row);
+    }
+    box.appendChild(c);
+  }
+
+  // 已发送
+  if (d.outgoing && d.outgoing.length) {
+    const c = el('div', 'card');
+    c.appendChild(el('div', 'h2', `⏳ 已发送(${d.outgoing.length})`));
+    for (const r of d.outgoing) {
+      const row = el('div', 'toolbar');
+      row.style.marginBottom = '8px';
+      row.appendChild(el('span', 't', `${r.name}(${shortId(r.owner)})· 等待通过`));
+      const no = el('button', 'mini-btn', '取消');
+      no.onclick = async () => { await fetch(`/api/friends/${r.id}`, { method: 'DELETE' }); loadFriends(); };
+      row.appendChild(no);
+      c.appendChild(row);
+    }
+    box.appendChild(c);
+  }
+
+  // 我的好友
+  const c2 = el('div', 'card');
+  c2.appendChild(el('div', 'h2', `👥 我的好友(${(d.friends || []).length})`));
+  if (!d.friends || !d.friends.length) {
+    c2.appendChild(el('div', 'sub', '还没有好友。在上方搜索对方的 QQ 号或昵称,发送好友请求吧。'));
+  } else {
+    for (const f of d.friends) {
+      const row = el('div', 'toolbar');
+      row.style.marginBottom = '8px';
+      row.appendChild(el('span', 't', `${f.name}(${shortId(f.owner)})`));
+      const del = el('button', 'mini-btn', '删除');
+      del.onclick = async () => {
+        if (!confirm(`确定删除好友「${f.name}」?`)) return;
+        await fetch(`/api/friends/${f.id}`, { method: 'DELETE' });
+        loadFriends();
+      };
+      row.appendChild(del);
+      c2.appendChild(row);
+    }
+  }
+  box.appendChild(c2);
+}
 
 async function loadSchedule() {
   try {
@@ -1690,7 +2279,7 @@ function renderSchedule(users, weather) {
   // 上传课表文件导入(iOS/安卓/电脑通用)
   const isAdmin = window.ME?.isAdmin;
   const up = el('div', 'card');
-  up.appendChild(el('div', 'h2', '📥 导入课表文件(教务系统导出的 xlsx)'));
+  up.appendChild(el('div', 'h2', '📥 导入课表(文件 / 图片)'));
   const row = el('div', 'toolbar');
   let ownerInp = null;
   if (isAdmin) {
@@ -1701,7 +2290,7 @@ function renderSchedule(users, weather) {
   }
   const fileInp = el('input');
   fileInp.type = 'file';
-  fileInp.accept = '.xlsx,.xls';
+  fileInp.accept = '.xlsx,.xls,.csv,image/*';
   fileInp.style.display = 'none';
   const pick = el('button', 'btn', '选择文件');
   pick.onclick = () => fileInp.click();
@@ -1731,7 +2320,7 @@ function renderSchedule(users, weather) {
   };
   if (ownerInp) row.appendChild(ownerInp);
   row.appendChild(pick);
-  row.appendChild(el('span', 'live', '支持东北大学教务导出的 xlsx,自动识别节次/周次/教室'));
+  row.appendChild(el('span', 'live', '支持:教务导出的「网格/列表」课表(xlsx / xls / csv),或课表截图(jpg/png 自动识别);图片识别失败时,可用「豆包」识别后把文字粘贴给机器人'));
   up.appendChild(row);
   box.appendChild(up);
 

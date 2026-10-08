@@ -137,11 +137,44 @@ CREATE TABLE IF NOT EXISTS posts (
   content    TEXT NOT NULL,
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS post_replies (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  post_id    INTEGER NOT NULL,      -- 所属留言
+  owner      TEXT NOT NULL,
+  name       TEXT DEFAULT '',
+  content    TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_post_replies_post ON post_replies(post_id);
 CREATE TABLE IF NOT EXISTS announcements (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   title      TEXT NOT NULL,
   content    TEXT NOT NULL,
   created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS friendships (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  owner_a    TEXT NOT NULL,            -- 发起请求方 owner('qq:<user_id>')
+  owner_b    TEXT NOT NULL,            -- 接收方 owner
+  status     TEXT NOT NULL DEFAULT 'pending',  -- pending | accepted
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  UNIQUE(owner_a, owner_b)
+);
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  from_owner TEXT NOT NULL,            -- 发送者 owner,机器人固定为 'bot'
+  to_owner   TEXT NOT NULL,            -- 接收者 owner
+  text       TEXT NOT NULL,
+  read_at    TEXT,                     -- 已读时间(接收方已读)
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_chat_to ON chat_messages(to_owner, from_owner);
+CREATE TABLE IF NOT EXISTS announcement_reads (
+  owner           TEXT NOT NULL,       -- 'qq:<user_id>'
+  announcement_id INTEGER NOT NULL,
+  created_at      TEXT NOT NULL,
+  PRIMARY KEY (owner, announcement_id)
 );
 `);
 
@@ -197,6 +230,9 @@ if (!suCols.includes('countdown_time')) {
 }
 if (!suCols.includes('background')) {
   db.exec('ALTER TABLE schedule_users ADD COLUMN background TEXT DEFAULT \'\'');
+}
+if (!suCols.includes('group_whitelist')) {
+  db.exec('ALTER TABLE schedule_users ADD COLUMN group_whitelist TEXT DEFAULT \'\'');
 }
 
 // 迁移:weather_users 多时段
@@ -292,8 +328,8 @@ export function upsertScheduleUser(owner, fields) {
   const cur = getScheduleUser(owner);
   if (!cur) {
     db.prepare(`
-      INSERT INTO schedule_users (owner, name, semester_start, notify_time, schedule_times, countdown_time, background, push_kind, push_key, class_remind, sleep_time, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO schedule_users (owner, name, semester_start, notify_time, schedule_times, countdown_time, background, push_kind, push_key, class_remind, sleep_time, group_whitelist, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       owner,
       fields.name || '',
@@ -306,6 +342,7 @@ export function upsertScheduleUser(owner, fields) {
       fields.pushKey ?? '',
       fields.classRemind ?? 1,
       fields.sleepTime ?? '',
+      fields.groupWhitelist ?? '',
       now
     );
   } else {
@@ -321,6 +358,7 @@ export function upsertScheduleUser(owner, fields) {
         push_key = COALESCE(?, push_key),
         class_remind = COALESCE(?, class_remind),
         sleep_time = COALESCE(?, sleep_time),
+        group_whitelist = COALESCE(?, group_whitelist),
         updated_at = ?
       WHERE owner = ?
     `).run(
@@ -334,12 +372,25 @@ export function upsertScheduleUser(owner, fields) {
       fields.pushKey ?? null,
       fields.classRemind ?? null,
       fields.sleepTime ?? null,
+      fields.groupWhitelist ?? null,
       now,
       owner
     );
   }
   events.emit('change');
   return getScheduleUser(owner);
+}
+
+/** 读取某个用户的 QQ 群白名单(JSON 数组字符串 → 字符串数组) */
+export function getGroupWhitelist(owner) {
+  const u = getScheduleUser(owner);
+  if (!u || !u.group_whitelist) return [];
+  try {
+    const a = JSON.parse(u.group_whitelist);
+    return Array.isArray(a) ? a.map((x) => String(x).trim()).filter(Boolean) : [];
+  } catch {
+    return String(u.group_whitelist).split(/[\s,]+/).map((x) => x.trim()).filter(Boolean);
+  }
 }
 
 function insertScheduleItems(owner, items) {
@@ -700,7 +751,28 @@ export function listPosts(limit = 100) {
     .map((r) => ({ ...r, id: Number(r.id) }));
 }
 
+/** 给每条留言附带它的回复(升序) */
+export function listPostsWithReplies(limit = 100) {
+  const posts = listPosts(limit);
+  const stmt = db.prepare('SELECT * FROM post_replies WHERE post_id = ? ORDER BY id ASC');
+  return posts.map((p) => ({ ...p, replies: stmt.all(p.id).map((r) => ({ ...r, id: Number(r.id) })) }));
+}
+
+export function addPostReply(postId, owner, name, content) {
+  const r = db.prepare('INSERT INTO post_replies (post_id, owner, name, content, created_at) VALUES (?, ?, ?, ?, ?)')
+    .run(Number(postId), owner, name, content, new Date().toISOString());
+  events.emit('change');
+  return Number(r.lastInsertRowid);
+}
+
+export function deletePostReply(id) {
+  const r = db.prepare('DELETE FROM post_replies WHERE id = ?').run(Number(id));
+  if (r.changes > 0) events.emit('change');
+  return r.changes > 0;
+}
+
 export function deletePost(id) {
+  db.prepare('DELETE FROM post_replies WHERE post_id = ?').run(Number(id));
   const r = db.prepare('DELETE FROM posts WHERE id = ?').run(id);
   if (r.changes > 0) events.emit('change');
   return r.changes > 0;
@@ -724,5 +796,184 @@ export function deleteAnnouncement(id) {
   const r = db.prepare('DELETE FROM announcements WHERE id = ?').run(id);
   if (r.changes > 0) events.emit('change');
   return r.changes > 0;
+}
+
+/** 某用户点「确认」后,该公告对其本人隐藏 */
+export function dismissAnnouncement(owner, id) {
+  db.prepare('INSERT OR IGNORE INTO announcement_reads (owner, announcement_id, created_at) VALUES (?, ?, ?)')
+    .run(owner, Number(id), new Date().toISOString());
+  return true;
+}
+
+/** 只返回该用户还没「确认」过的公告 */
+export function listAnnouncementsFor(owner, limit = 20) {
+  return db.prepare(
+    'SELECT * FROM announcements WHERE id NOT IN (SELECT announcement_id FROM announcement_reads WHERE owner = ?) ORDER BY id DESC LIMIT ?'
+  ).all(owner, Number(limit) || 20);
+}
+
+/* ================= 用户好友 ================= */
+
+/** 取用户显示名(找不到就回退到 owner) */
+function userName(owner) {
+  const u = db.prepare('SELECT name FROM schedule_users WHERE owner = ?').get(owner);
+  return (u && u.name) || owner;
+}
+
+/** a 与 b 是否为好友 */
+export function areFriends(a, b) {
+  if (!a || !b) return false;
+  const row = db.prepare(
+    "SELECT 1 AS x FROM friendships WHERE status = 'accepted' AND ((owner_a = ? AND owner_b = ?) OR (owner_a = ? AND owner_b = ?))"
+  ).get(a, b, b, a);
+  return Boolean(row);
+}
+
+/** a 与 b 的关系:none | friend | outgoing(我发给对方)| incoming(对方发给我) */
+function relationBetween(a, b) {
+  const row = db.prepare(
+    'SELECT * FROM friendships WHERE (owner_a = ? AND owner_b = ?) OR (owner_a = ? AND owner_b = ?)'
+  ).get(a, b, b, a);
+  if (!row) return 'none';
+  if (row.status === 'accepted') return 'friend';
+  return row.owner_a === a ? 'outgoing' : 'incoming';
+}
+
+/** 按 QQ 号 / 昵称搜索用户(排除自己),附带与当前用户的关系 */
+export function searchUsers(self, q) {
+  const kw = `%${String(q || '').trim()}%`;
+  const rows = db.prepare(
+    'SELECT owner, name FROM schedule_users WHERE owner <> ? AND (owner LIKE ? OR name LIKE ?) ORDER BY updated_at DESC LIMIT 30'
+  ).all(self, kw, kw);
+  return rows.map((r) => ({ owner: r.owner, name: r.name || r.owner, relation: relationBetween(self, r.owner) }));
+}
+
+/** 我的好友列表 */
+export function listFriends(owner) {
+  const rows = db.prepare(
+    "SELECT * FROM friendships WHERE status = 'accepted' AND (owner_a = ? OR owner_b = ?) ORDER BY updated_at DESC"
+  ).all(owner, owner);
+  return rows.map((r) => {
+    const other = r.owner_a === owner ? r.owner_b : r.owner_a;
+    return { id: Number(r.id), owner: other, name: userName(other) };
+  });
+}
+
+/** 收到 / 发出的好友请求 */
+export function listFriendRequests(owner) {
+  const incoming = db.prepare(
+    "SELECT * FROM friendships WHERE status = 'pending' AND owner_b = ? ORDER BY id DESC"
+  ).all(owner).map((r) => ({ id: Number(r.id), owner: r.owner_a, name: userName(r.owner_a), created_at: r.created_at }));
+  const outgoing = db.prepare(
+    "SELECT * FROM friendships WHERE status = 'pending' AND owner_a = ? ORDER BY id DESC"
+  ).all(owner).map((r) => ({ id: Number(r.id), owner: r.owner_b, name: userName(r.owner_b), created_at: r.created_at }));
+  return { incoming, outgoing };
+}
+
+/** 发送好友请求;若对方已向我发过请求,则直接互相成为好友 */
+export function sendFriendRequest(from, to) {
+  if (!from || !to) return { error: '参数缺失' };
+  if (from === to) return { error: '不能添加自己' };
+  if (!db.prepare('SELECT owner FROM schedule_users WHERE owner = ?').get(to)) return { error: '该用户不存在' };
+  const existing = db.prepare(
+    'SELECT * FROM friendships WHERE (owner_a = ? AND owner_b = ?) OR (owner_a = ? AND owner_b = ?)'
+  ).get(from, to, to, from);
+  const now = new Date().toISOString();
+  if (existing) {
+    if (existing.status === 'accepted') return { error: '你们已经是好友了' };
+    if (existing.owner_a === to && existing.owner_b === from) {
+      db.prepare("UPDATE friendships SET status = 'accepted', updated_at = ? WHERE id = ?").run(now, existing.id);
+      events.emit('change');
+      return { ok: true, accepted: true };
+    }
+    return { error: '已发送过好友请求,等待对方通过' };
+  }
+  db.prepare("INSERT INTO friendships (owner_a, owner_b, status, created_at, updated_at) VALUES (?, ?, 'pending', ?, ?)")
+    .run(from, to, now, now);
+  events.emit('change');
+  return { ok: true };
+}
+
+/** 处理好友请求(仅接收方可操作) */
+export function respondFriendRequest(id, owner, accept) {
+  const row = db.prepare('SELECT * FROM friendships WHERE id = ?').get(Number(id));
+  if (!row) return { error: '请求不存在' };
+  if (row.owner_b !== owner) return { error: '无权操作' };
+  if (row.status !== 'pending') return { error: '请求已处理' };
+  if (accept) {
+    db.prepare("UPDATE friendships SET status = 'accepted', updated_at = ? WHERE id = ?").run(new Date().toISOString(), row.id);
+  } else {
+    db.prepare('DELETE FROM friendships WHERE id = ?').run(row.id);
+  }
+  events.emit('change');
+  return { ok: true };
+}
+
+/** 删除好友 / 取消已发出的请求 */
+export function removeFriend(id, owner) {
+  const row = db.prepare('SELECT * FROM friendships WHERE id = ?').get(Number(id));
+  if (!row) return { error: '记录不存在' };
+  if (row.owner_a !== owner && row.owner_b !== owner) return { error: '无权操作' };
+  db.prepare('DELETE FROM friendships WHERE id = ?').run(row.id);
+  events.emit('change');
+  return { ok: true };
+}
+
+/* ================= 聊天消息 ================= */
+
+export const BOT_OWNER = 'bot';
+
+export function getChatMessage(id) {
+  const r = db.prepare('SELECT * FROM chat_messages WHERE id = ?').get(Number(id));
+  return r ? { ...r, id: Number(r.id) } : null;
+}
+
+export function addChatMessage(from, to, text) {
+  const r = db.prepare(
+    'INSERT INTO chat_messages (from_owner, to_owner, text, read_at, created_at) VALUES (?, ?, ?, NULL, ?)'
+  ).run(from, to, String(text), new Date().toISOString());
+  return getChatMessage(Number(r.lastInsertRowid));
+}
+
+/** 我与 peer 的消息(升序),sinceId 用于增量拉取 */
+export function listChatMessages(me, peer, { sinceId = 0, limit = 200 } = {}) {
+  return db.prepare(
+    `SELECT * FROM chat_messages
+     WHERE ((from_owner = ? AND to_owner = ?) OR (from_owner = ? AND to_owner = ?)) AND id > ?
+     ORDER BY id ASC LIMIT ?`
+  ).all(me, peer, peer, me, Number(sinceId) || 0, Number(limit) || 200).map((r) => ({ ...r, id: Number(r.id) }));
+}
+
+/** 把 peer 发给我的消息标记为已读 */
+export function markChatRead(me, peer) {
+  db.prepare('UPDATE chat_messages SET read_at = ? WHERE to_owner = ? AND from_owner = ? AND read_at IS NULL')
+    .run(new Date().toISOString(), me, peer);
+}
+
+/** 会话列表(每个对端一条,带最后一条消息与未读数) */
+export function listConversations(me) {
+  const rows = db.prepare(
+    `SELECT CASE WHEN from_owner = ? THEN to_owner ELSE from_owner END AS peer,
+            MAX(id) AS last_id,
+            SUM(CASE WHEN to_owner = ? AND read_at IS NULL THEN 1 ELSE 0 END) AS unread
+     FROM chat_messages
+     WHERE from_owner = ? OR to_owner = ?
+     GROUP BY peer
+     ORDER BY last_id DESC`
+  ).all(me, me, me, me);
+  return rows.map((r) => {
+    const last = getChatMessage(r.last_id);
+    return {
+      peer: r.peer,
+      name: r.peer === BOT_OWNER ? 'iTodo 机器人' : userName(r.peer),
+      last: last ? { text: last.text, from: last.from_owner, at: last.created_at } : null,
+      unread: Number(r.unread) || 0,
+    };
+  });
+}
+
+/** 未读消息总数(用于页签红点) */
+export function totalChatUnread(me) {
+  return Number(db.prepare('SELECT COUNT(*) c FROM chat_messages WHERE to_owner = ? AND read_at IS NULL').get(me).c) || 0;
 }
 

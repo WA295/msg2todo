@@ -7,3 +7,7 @@ dist/
 *.zip
 *.memory-card.json
 public/*.apk
+
+# Android release 签名(务必自行备份,勿提交)
+android/itodo-release.jks
+android/keystore.properties

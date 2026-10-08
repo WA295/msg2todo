@@ -1,4 +1,5 @@
 import { config } from './config.js';
+import { events } from './events.js';
 import { getWeatherUser, upsertWeatherUser, setWeatherReminded, listScheduleUsers } from './db.js';
 import { partsOf } from './time.js';
 import { sendBark, sendPushDeer } from './notify.js';
@@ -50,7 +51,7 @@ async function fetchJson(url, timeoutMs) {
   }
 }
 
-/** 获取城市天气(带 10 分钟缓存),失败抛错 */
+/** 获取城市天气(带 5 分钟缓存),失败抛错 */
 export async function getWeather(city) {
   const hit = cache.get(city);
   if (hit && Date.now() < hit.exp) return hit.data;
@@ -66,7 +67,7 @@ export async function getWeather(city) {
     8000
   );
   const data = { city: loc.name, admin1: loc.admin1 || '', current: f.current, daily: f.daily };
-  cache.set(city, { exp: Date.now() + 10 * 60 * 1000, data });
+  cache.set(city, { exp: Date.now() + 5 * 60 * 1000, data });
   return data;
 }
 
@@ -167,6 +168,7 @@ async function check() {
         notify(u.owner, text);
         setWeatherReminded(u.owner, `${today} ${slot}`);
         lastSlot = slot;
+        events.emit('weather', { owner: u.owner, city });
         console.log(`[天气] 已推送 ${city} 天气给「${u.owner}」(${slot})`);
       } catch (e) {
         console.warn(`[天气] 获取 ${city} 失败:`, e.message);
