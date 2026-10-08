@@ -176,6 +176,15 @@ export function startWeb() {
     });
   });
 
+  // 设置昵称(显示在好友/聊天/留言板)
+  app.post('/api/profile/nickname', express.json(), (req, res) => {
+    const owner = req.user.isAdmin ? 'qq:1487138742' : req.user.owner;
+    const name = String(req.body?.name || '').trim().slice(0, 20);
+    if (!name) return res.status(400).json({ error: '昵称不能为空' });
+    upsertScheduleUser(owner, { name });
+    res.json({ ok: true, name });
+  });
+
   // 待办列表(学生只看自己的;管理员看全部)
   app.get('/api/todos', (req, res) => {
     const status = ['open', 'done'].includes(req.query.status) ? req.query.status : 'all';
