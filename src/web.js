@@ -17,7 +17,7 @@ import { parseWorkbook } from './excelImport.js';
 import { events, liveStatus } from './events.js';
 import { addPushSubscription, listPushSubscriptions, deletePushSubscription, listResources, addResource, deleteResource,
   addPackage, listPackages, markPackageDone, deletePackage, addPost, listPosts, deletePost,
-  addAnnouncement, listAnnouncements, deleteAnnouncement } from './db.js';
+  addAnnouncement, listAnnouncements, deleteAnnouncement, jokeOfDay, listJokes, addJoke, deleteJoke } from './db.js';
 import { pushCountdownNow } from './countdown.js';
 import { sendWebPush } from './push.js';
 import { sendQQPrivate } from './onebot.js';
@@ -410,6 +410,25 @@ export function startWeb() {
     res.json({ ok: true });
   });
 
+  // ── 每日一句 ──
+  app.get('/api/jokes', (req, res) => {
+    res.json({ today: jokeOfDay(), jokes: listJokes() });
+  });
+
+  app.post('/api/jokes', express.json(), (req, res) => {
+    if (!req.user.isAdmin) return res.status(403).json({ error: '仅管理员可添加' });
+    const content = String(req.body?.content || '').trim().slice(0, 200);
+    if (!content) return res.status(400).json({ error: '内容不能为空' });
+    addJoke(content);
+    res.json({ ok: true });
+  });
+
+  app.delete('/api/jokes/:id', (req, res) => {
+    if (!req.user.isAdmin) return res.status(403).json({ error: '仅管理员可删' });
+    if (!deleteJoke(Number(req.params.id))) return res.status(404).json({ error: '不存在' });
+    res.json({ ok: true });
+  });
+
   // ── 数据备份下载(仅管理员)──
   app.get('/api/backup', (req, res) => {
     if (!req.user.isAdmin) return res.status(403).json({ error: '仅管理员可下载' });
@@ -553,6 +572,7 @@ export function startWeb() {
       runningPomodoro: running,
       dueTodos: openDue,
       weather: weather ? { text: weather, code: weatherCode } : null,
+      joke: jokeOfDay(),
       announcements: listAnnouncements(5),
       status: { ...liveStatus, llm: config.llm.enabled, bark: Boolean(config.barkUrl), pushdeer: Boolean(config.pushDeerKey) },
       scheduleTimes: {

@@ -978,6 +978,28 @@ async function openCtrl(id, title, ctx) {
       await post('/api/reminder/times', { type, times });
       openCtrl('times', '⏰ 提醒时段', ctx);
     }));
+  } else if (id === 'joke') {
+    const data = await fetch('/api/jokes').then((r) => r.json()).catch(() => ({ jokes: [] }));
+    body.appendChild(el('div', 'sub', `今日:${data.today || '暂无'} · 共 ${data.jokes.length} 条(按日期轮换,全体同一条)`));
+    for (const jk of data.jokes) {
+      const r = el('div', 'cd-item');
+      r.appendChild(el('span', null, jk.content));
+      const del = el('button', 'del', '✕');
+      del.onclick = async () => {
+        if (!confirm('删除这条?')) return;
+        await fetch(`/api/jokes/${jk.id}`, { method: 'DELETE' });
+        openCtrl('joke', '💡 每日一句');
+      };
+      r.appendChild(del);
+      body.appendChild(r);
+    }
+    const cI = mkInput('新冷笑话/热梗(200字内)', '');
+    body.appendChild(row('新增', cI));
+    body.appendChild(mkBtn('➕ 添加', async () => {
+      if (!cI.value.trim()) { alert('内容不能为空'); return; }
+      await post('/api/jokes', { content: cI.value.trim() });
+      openCtrl('joke', '💡 每日一句');
+    }));
   }
 }
 
@@ -1068,6 +1090,21 @@ function renderHome(d) {
     ok.onclick = () => { localStorage.setItem('guideDone', '1'); loadHome(); };
     g.appendChild(ok);
     frag.appendChild(g);
+  }
+
+  // 每日一句卡片
+  if (d.joke) {
+    const jcard = el('div', 'card');
+    jcard.style.cssText = 'background:var(--accent-soft)';
+    jcard.appendChild(el('div', 'h2', '💡 每日一句'));
+    jcard.appendChild(el('div', 'cheat', d.joke));
+    if (window.ME?.isAdmin) {
+      const mgr = el('button', 'mini-btn', '管理笑话库');
+      mgr.style.marginTop = '8px';
+      mgr.onclick = () => openCtrl('joke', '💡 每日一句');
+      jcard.appendChild(mgr);
+    }
+    frag.appendChild(jcard);
   }
 
   // 天气(按实际天气动态换背景)
