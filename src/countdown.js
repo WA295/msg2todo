@@ -1,5 +1,5 @@
 import { config } from './config.js';
-import { db, getScheduleUser, addCountdown, listCountdowns, deleteCountdown, setScheduleUserReminded } from './db.js';
+import { db, getScheduleUser, upsertScheduleUser, addCountdown, listCountdowns, deleteCountdown, setScheduleUserReminded } from './db.js';
 import { partsOf, daysUntil, partsToStr } from './time.js';
 import { sendBark, sendPushDeer } from './notify.js';
 import { sendQQPrivate } from './onebot.js';
@@ -25,6 +25,13 @@ function notify(owner, text, title = '⏳ 倒计时') {
   else if (u?.push_kind === 'pushdeer') sendPushDeer(title, text, u.push_key);
 }
 
+/** 新建倒计时后立即推送一条(供 QQ 指令与 App 接口共用) */
+export function pushCountdownNow(owner, title, target) {
+  const left = daysUntil(target, partsOf(new Date()));
+  const mark = left < 0 ? `已过 ${Math.abs(left)} 天` : left === 0 ? '就是今天!🎯' : `还有 ${left} 天`;
+  notify(owner, `⏳ 倒计时已创建:「${title}」 ${mark}\n每天 08:00 我会提醒你剩余天数`);
+}
+
 async function check() {
   const nowP = partsOf(new Date());
   const curMin = nowP.h * 60 + nowP.mi;
@@ -34,8 +41,8 @@ async function check() {
 
   const owners = db.prepare('SELECT DISTINCT owner FROM countdowns').all();
   for (const { owner } of owners) {
-    const u = getScheduleUser(owner);
-    if (!u) continue;
+    let u = getScheduleUser(owner);
+    if (!u) u = upsertScheduleUser(owner, {}); // 补建用户记录,保证去重字段可用
     if (u.last_countdown_remind === today) continue;
     const cds = listCountdowns(owner).filter((c) => c.target >= today);
     if (!cds.length) continue;
@@ -131,6 +138,7 @@ export async function handleCountdownCommand(msg) {
     const name = title.trim().slice(0, 30) || '倒计时';
     addCountdown(owner, name, target);
     const left = daysUntil(target, partsOf(new Date()));
+    pushCountdownNow(owner, name, target);
     await reply(`✅ 已创建「${name}」,目标 ${y}年${mo}月${d}日,${left < 0 ? `已过 ${Math.abs(left)} 天` : `还有 ${left} 天`}\n考前 7/3/1 天和到期日会重点提醒`);
     return true;
   }
