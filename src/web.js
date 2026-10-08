@@ -6,7 +6,8 @@ import {
   db, listTodos, toggleTodo, deleteTodo, addTodo, stats,
   listScheduleUsers, listScheduleItems, clearSchedule, deleteScheduleItem, replaceSchedule,
   pomodoroTodayByOwner, getScheduleUser, upsertScheduleUser, getUserByToken, setWebToken, randomToken,
-  getWeatherUser,
+  getWeatherUser, startPomodoro, stopPomodoro, pomodoroStats, addCountdown, deleteCountdown, listCountdowns,
+  upsertWeatherUser,
 } from './db.js';
 import { parseLocalInput, partsOf, weekOf, zonedDate, partsToStr, daysUntil } from './time.js';
 import { buildDayText } from './schedule.js';
@@ -124,7 +125,7 @@ export function startWeb() {
       priority: ['high', 'medium', 'low'].includes(priority) ? priority : 'medium',
       notes: String(notes || '').trim(),
       source: 'manual',
-      owner: req.user.isAdmin ? '' : req.user.owner,
+      owner: req.user.isAdmin ? 'qq:1487138742' : req.user.owner,
     });
     res.json(todo);
   });
@@ -163,16 +164,139 @@ export function startWeb() {
   app.post('/api/push/subscribe', express.json(), (req, res) => {
     const sub = req.body?.subscription;
     if (!sub || !sub.endpoint || !sub.keys?.p256dh) return res.status(400).json({ error: '订阅数据无效' });
-    const owner = req.user.isAdmin ? 'admin' : req.user.owner;
+    const owner = req.user.isAdmin ? 'qq:1487138742' : req.user.owner;
     addPushSubscription(owner, sub, req.headers['user-agent'] || '');
     res.json({ ok: true, count: listPushSubscriptions(owner).length });
   });
 
   // 取消订阅
   app.post('/api/push/unsubscribe', express.json(), (req, res) => {
-    const owner = req.user.isAdmin ? 'admin' : req.user.owner;
+    const owner = req.user.isAdmin ? 'qq:1487138742' : req.user.owner;
     deletePushSubscription(owner, String(req.body?.endpoint || ''));
     res.json({ ok: true });
+  });
+
+  // ── 番茄钟控制(App 内,替代 QQ 指令)──
+  app.get('/api/pomodoro', (req, res) => {
+    const owner = req.user.isAdmin ? 'qq:1487138742' : req.user.owner;
+    const running = db.prepare("SELECT * FROM pomodoro WHERE owner = ? AND status = 'running'").get(owner);
+    res.json({ running: running || null, stats: pomodoroStats(owner) });
+  });
+
+  app.post('/api/pomodoro/start', express.json(), (req, res) => {
+    const owner = req.user.isAdmin ? 'qq:1487138742' : req.user.owner;
+    const focus = Math.min(180, Math.max(1, Number(req.body?.focusMin) || 25));
+    const rest = Math.min(60, Math.max(1, Number(req.body?.restMin) || 5));
+    const rounds = Math.min(12, Math.max(1, Number(req.body?.rounds) || 1));
+    startPomodoro({ owner, focusMin: focus, restMin: rest, rounds });
+    res.json({ ok: true, focusMin: focus, restMin: rest, rounds });
+  });
+
+  app.post('/api/pomodoro/stop', (req, res) => {
+    const owner = req.user.isAdmin ? 'qq:1487138742' : req.user.owner;
+    stopPomodoro(owner);
+    res.json({ ok: true });
+  });
+
+  // ── 天气设置(App 内)──
+  app.post('/api/weather/config', express.json(), (req, res) => {
+    const owner = req.user.isAdmin ? 'qq:1487138742' : req.user.owner;
+    const fields = {};
+    if (req.body?.city !== undefined) fields.city = String(req.body.city).trim().slice(0, 20);
+    if (/^\d{1,2}:\d{2}$/.test(String(req.body?.time || ''))) fields.notifyTime = req.body.time;
+    if (req.body?.enabled !== undefined) fields.enabled = req.body.enabled ? 1 : 0;
+    upsertWeatherUser(owner, fields);
+    res.json({ ok: true, config: getWeatherUser(owner) });
+  });
+
+  // ── 倒计时管理(App 内)──
+  app.post('/api/countdowns', express.json(), (req, res) => {
+    const owner = req.user.isAdmin ? 'qq:1487138742' : req.user.owner;
+    const title = String(req.body?.title || '').trim().slice(0, 30);
+    const target = String(req.body?.target || '').trim();
+    if (!title) return res.status(400).json({ error: '标题不能为空' });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(target)) return res.status(400).json({ error: '日期格式应为 YYYY-MM-DD' });
+    const [y, mo, d] = target.split('-').map(Number);
+    const dt = new Date(Date.UTC(y, mo - 1, d));
+    if (dt.getUTCFullYear() !== y || dt.getUTCMonth() !== mo - 1 || dt.getUTCDate() !== d) {
+      return res.status(400).json({ error: '日期无效' });
+    }
+    const id = addCountdown(owner, title, target);
+    res.json({ ok: true, id });
+  });
+
+  app.delete('/api/countdowns/:id', (req, res) => {
+    const owner = req.user.isAdmin ? 'qq:1487138742' : req.user.owner;
+    const cd = db.prepare('SELECT * FROM countdowns WHERE id = ?').get(Number(req.params.id));
+    if (!cd) return res.status(404).json({ error: '倒计时不存在' });
+    if (!req.user.isAdmin && cd.owner !== owner) return res.status(403).json({ error: '无权操作' });
+    deleteCountdown(Number(req.params.id));
+    res.json({ ok: true });
+  });
+
+  // ── 睡觉提醒 / 课表提醒时间 / 开学日期 / 上课提醒开关(App 内)──
+  app.post('/api/schedule/config', express.json(), (req, res) => {
+    const owner = req.user.isAdmin ? 'qq:1487138742' : req.user.owner;
+    const fields = {};
+    if (/^\d{1,2}:\d{2}$/.test(String(req.body?.notifyTime || ''))) fields.notifyTime = req.body.notifyTime;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(String(req.body?.semesterStart || ''))) fields.semesterStart = req.body.semesterStart;
+    if (req.body?.classRemind !== undefined) fields.classRemind = req.body.classRemind ? 1 : 0;
+    if (req.body?.sleepTime !== undefined) fields.sleepTime = String(req.body.sleepTime).trim();
+    if (req.body?.sleepOff) fields.sleepTime = '';
+    upsertScheduleUser(owner, fields);
+    res.json({ ok: true });
+  });
+
+  // ── 手机推送绑定(App 内,替代「设置推送」指令)──
+  app.post('/api/push/bind', express.json(), (req, res) => {
+    const owner = req.user.isAdmin ? 'qq:1487138742' : req.user.owner;
+    const raw = String(req.body?.key || '').trim();
+    if (!raw) return res.status(400).json({ error: '请填写 Bark 地址或 PushDeer 的 PDU key' });
+    let kind = '';
+    let k = raw;
+    if (/^PDU/i.test(raw) || /pushdeer/i.test(raw)) {
+      kind = 'pushdeer';
+      k = raw.replace(/^.*(PDU\w+).*$/i, '$1');
+    } else if (raw.includes('api.day.app') || /^https?:\/\//i.test(raw)) {
+      kind = 'bark';
+    } else if (/^[A-Za-z0-9]{16,}$/.test(raw)) {
+      kind = 'bark';
+    }
+    if (!kind) return res.status(400).json({ error: '无法识别推送密钥类型(Bark 地址或 PDU 开头的 PushDeer key)' });
+    upsertScheduleUser(owner, { pushKind: kind, pushKey: k });
+    res.json({ ok: true, kind });
+  });
+
+  app.post('/api/push/unbind', (req, res) => {
+    const owner = req.user.isAdmin ? 'qq:1487138742' : req.user.owner;
+    upsertScheduleUser(owner, { pushKind: '', pushKey: '' });
+    res.json({ ok: true });
+  });
+
+  // ── 我的设置(App 控制面板数据源)──
+  app.get('/api/settings', (req, res) => {
+    const owner = req.user.isAdmin ? 'qq:1487138742' : req.user.owner;
+    const su = getScheduleUser(owner) || {};
+    const wu = getWeatherUser(owner) || {};
+    res.json({
+      schedule: {
+        notifyTime: su.notify_time || config.schedule.notifyTime,
+        semesterStart: su.semester_start || config.schedule.semesterStart,
+        classRemind: su.class_remind !== 0,
+        sleepTime: su.sleep_time || '',
+      },
+      weather: {
+        city: wu.city || config.weather.city,
+        time: wu.notify_time || config.weather.notifyTime,
+        enabled: wu.enabled !== 0,
+      },
+      push: { kind: su.push_kind || '', hasKey: Boolean(su.push_key) },
+      countdowns: listCountdowns(owner).map((c) => ({ ...c, id: Number(c.id) })),
+      pomodoro: {
+        running: db.prepare("SELECT * FROM pomodoro WHERE owner = ? AND status = 'running'").get(owner) || null,
+        stats: pomodoroStats(owner),
+      },
+    });
   });
 
   // 总览:看板首页聚合数据(天气/明日课程/倒计时/番茄/待办/自动化时间表)

@@ -238,6 +238,16 @@
   </div>
 </div>
 
+<div class="modal" id="ctrlModal" style="display:none">
+  <div class="modal-card" style="text-align:left; min-width:min(400px, 92vw); max-height:80vh; overflow-y:auto">
+    <div style="display:flex; justify-content:space-between; align-items:center">
+      <h3 id="ctrlTitle" style="margin:0">控制面板</h3>
+      <button class="mini-btn" id="ctrlClose">✕</button>
+    </div>
+    <div id="ctrlBody" style="margin-top:12px"></div>
+  </div>
+</div>
+
 <div class="modal" id="authModal" style="display:none">
   <div class="modal-card" style="text-align:left; min-width:min(340px, 90vw)">
     <h3 style="text-align:center">🔒 登录</h3>
@@ -567,6 +577,120 @@ async function renderPushCard(frag) {
   frag.appendChild(card);
 }
 
+/* ---- 功能控制面板(替代 QQ 指令) ---- */
+$('#ctrlClose').onclick = () => { $('#ctrlModal').style.display = 'none'; };
+
+async function openCtrl(id, title) {
+  $('#ctrlTitle').textContent = title;
+  $('#ctrlModal').style.display = 'flex';
+  const body = $('#ctrlBody');
+  body.innerHTML = '加载中…';
+  let s;
+  try {
+    s = await fetch('/api/settings').then((r) => r.json());
+  } catch (e) {
+    body.innerHTML = '加载失败,请重试';
+    return;
+  }
+  body.innerHTML = '';
+  const post = async (url, data) => {
+    const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data || {}) });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { alert(d.error || '操作失败'); return false; }
+    loadHome();
+    loadSchedule();
+    return true;
+  };
+  const mkInput = (ph, val) => { const i = el('input'); i.className = 'search'; i.placeholder = ph; i.value = val || ''; return i; };
+  const mkBtn = (text, onClick, cls = 'btn') => { const b = el('button', cls, text); b.onclick = onClick; return b; };
+  const row = (label, node) => { const r = el('div', 'toolbar'); r.style.marginBottom = '10px'; r.appendChild(el('span', 'live', label)); r.appendChild(node); return r; };
+  const sub = el('div', 'sub');
+  sub.style.marginTop = '10px';
+
+  if (id === 'pomo') {
+    if (s.pomodoro.running) {
+      const r = s.pomodoro.running;
+      body.appendChild(el('div', 'h2', `进行中:第 ${r.round}/${r.rounds} 轮 ${r.phase === 'focus' ? '专注' : '休息'}( ${r.phase === 'focus' ? r.focus_min : r.rest_min} 分钟)`));
+      body.appendChild(mkBtn('⏹ 结束番茄钟', async () => { await post('/api/pomodoro/stop'); openCtrl('pomo', '🍅 番茄钟'); }, 'mini-btn'));
+    } else {
+      const fI = mkInput('专注分钟(默认 25)', '25');
+      const rI = mkInput('休息分钟(默认 5)', '5');
+      const nI = mkInput('轮数(默认 1)', '1');
+      body.appendChild(row('专注', fI));
+      body.appendChild(row('休息', rI));
+      body.appendChild(row('轮数', nI));
+      body.appendChild(mkBtn('▶ 开始专注', async () => {
+        await post('/api/pomodoro/start', { focusMin: Number(fI.value), restMin: Number(rI.value), rounds: Number(nI.value) });
+        openCtrl('pomo', '🍅 番茄钟');
+      }));
+    }
+    sub.textContent = `🍅 今日 ${s.pomodoro.stats.today} 个 · 累计 ${s.pomodoro.stats.total} 个 · 累计专注 ${(s.pomodoro.stats.focusMinutes / 60).toFixed(1)} 小时`;
+    body.appendChild(sub);
+  } else if (id === 'weather') {
+    const cI = mkInput('城市,如 沈阳 / 北京', s.weather.city);
+    body.appendChild(row('城市', cI));
+    body.appendChild(mkBtn('💾 保存城市', async () => { await post('/api/weather/config', { city: cI.value.trim() }); openCtrl('weather', '🌤 天气'); }));
+    const tI = mkInput('推送时间 HH:MM', s.weather.time);
+    body.appendChild(row('时间', tI));
+    body.appendChild(mkBtn('💾 保存时间', async () => { await post('/api/weather/config', { time: tI.value.trim() }); openCtrl('weather', '🌤 天气'); }));
+    body.appendChild(s.weather.enabled
+      ? mkBtn('🔕 关闭每日推送', async () => { await post('/api/weather/config', { enabled: false }); openCtrl('weather', '🌤 天气'); }, 'mini-btn')
+      : mkBtn('🔔 开启每日推送', async () => { await post('/api/weather/config', { enabled: true }); openCtrl('weather', '🌤 天气'); }));
+  } else if (id === 'cd') {
+    for (const c of s.countdowns) {
+      const r = el('div', 'cd-item');
+      r.appendChild(el('span', null, `${c.title}(${c.target})`));
+      const del = el('button', 'del', '✕');
+      del.onclick = async () => {
+        if (!confirm(`删除「${c.title}」?`)) return;
+        await fetch(`/api/countdowns/${c.id}`, { method: 'DELETE' });
+        openCtrl('cd', '⏳ 倒计时');
+      };
+      r.appendChild(del);
+      body.appendChild(r);
+    }
+    const tI = mkInput('标题,如 四六级', '');
+    const dI = mkInput('', '');
+    dI.type = 'date';
+    body.appendChild(row('标题', tI));
+    body.appendChild(row('日期', dI));
+    body.appendChild(mkBtn('➕ 添加倒计时', async () => {
+      if (!tI.value.trim() || !dI.value) { alert('标题和日期都要填'); return; }
+      await post('/api/countdowns', { title: tI.value.trim(), target: dI.value });
+      openCtrl('cd', '⏳ 倒计时');
+    }));
+  } else if (id === 'remind') {
+    const sT = mkInput('睡觉提醒 HH:MM(留空=关闭)', s.schedule.sleepTime);
+    body.appendChild(row('睡觉提醒', sT));
+    const nT = mkInput('课表提醒时间', s.schedule.notifyTime);
+    body.appendChild(row('课表提醒', nT));
+    const semI = mkInput('开学日期 YYYY-MM-DD', s.schedule.semesterStart);
+    body.appendChild(row('开学日期', semI));
+    body.appendChild(mkBtn('💾 保存以上设置', async () => {
+      await post('/api/schedule/config', { sleepTime: sT.value.trim(), notifyTime: nT.value.trim(), semesterStart: semI.value.trim() });
+      openCtrl('remind', '⏰ 提醒设置');
+    }));
+    body.appendChild(mkBtn(s.schedule.classRemind ? '🔕 关闭上课前提醒' : '🔔 开启上课前提醒', async () => {
+      await post('/api/schedule/config', { classRemind: !s.schedule.classRemind });
+      openCtrl('remind', '⏰ 提醒设置');
+    }, 'mini-btn'));
+  } else if (id === 'pushbind') {
+    body.appendChild(el('div', 'sub', s.push.kind ? `✅ 已绑定 ${s.push.kind === 'bark' ? 'Bark(iOS)' : 'PushDeer(安卓)'} 手机推送` : '未绑定手机推送'));
+    const kI = mkInput('Bark 地址 或 PDU 开头的 PushDeer key', '');
+    body.appendChild(row('密钥', kI));
+    body.appendChild(mkBtn('💾 绑定', async () => {
+      if (!kI.value.trim()) { alert('请粘贴密钥'); return; }
+      await post('/api/push/bind', { key: kI.value.trim() });
+      openCtrl('pushbind', '🔔 手机推送');
+    }));
+    if (s.push.kind) {
+      body.appendChild(mkBtn('🔕 解绑', async () => { await post('/api/push/unbind'); openCtrl('pushbind', '🔔 手机推送'); }, 'mini-btn'));
+    }
+    sub.textContent = 'iOS 用 Bark(免费);安卓用 PushDeer(免费)。绑定后提醒同时推到手机锁屏。';
+    body.appendChild(sub);
+  }
+}
+
 async function loadHome() {
   try {
     const res = await fetch('/api/overview');
@@ -696,18 +820,19 @@ function renderHome(d) {
   const grid = el('div', 'feat-grid');
   const feats = [
     { icon: '📝', name: '待办', desc: '聊天消息自动提取 / 手动添加', cmd: '发消息即可', v: 'todo', adminOnly: true },
-    { icon: '📚', name: '课表', desc: '发文本或 xlsx 文件导入,每晚提醒', cmd: '课表 / 发文件', v: 'sched' },
-    { icon: '🍅', name: '番茄钟', desc: '专注计时,到点提醒', cmd: '番茄 25 5 4', v: null },
-    { icon: '🌤', name: '天气', desc: '每日天气+带伞提示', cmd: '设置天气 城市', v: null },
-    { icon: '⏳', name: '倒计时', desc: '考试/放假天数提醒', cmd: '倒计时 12月12日 四六级', v: null },
+    { icon: '📚', name: '课表', desc: '发文本或 xlsx 文件导入,每晚提醒', cmd: '点击上传文件', v: 'sched' },
+    { icon: '🍅', name: '番茄钟', desc: '专注计时,到点提醒', cmd: '点击开始专注', ctrl: ['pomo', '🍅 番茄钟'] },
+    { icon: '🌤', name: '天气', desc: '每日天气+带伞提示', cmd: '点击设置城市', ctrl: ['weather', '🌤 天气'] },
+    { icon: '⏳', name: '倒计时', desc: '考试/放假天数提醒', cmd: '点击添加', ctrl: ['cd', '⏳ 倒计时'] },
     { icon: '📊', name: '每周回顾', desc: '周日自动总结本周', cmd: '自动推送', v: null },
-    { icon: '🌙', name: '睡觉提醒', desc: '到点提醒,早八加提示', cmd: '睡觉提醒 23:00', v: null },
-    { icon: '🔔', name: '手机推送', desc: d.status.bark ? 'Bark 已绑定 ✓' : '未绑定推送', cmd: d.status.bark ? '已推送至手机' : '设置推送 <key>', v: null },
+    { icon: '🌙', name: '提醒设置', desc: '睡觉/课表/开学日期/上课提醒', cmd: '点击设置', ctrl: ['remind', '⏰ 提醒设置'] },
+    { icon: '🔔', name: '手机推送', desc: d.status.bark ? 'Bark 已绑定 ✓' : '绑定 Bark/PushDeer', cmd: '点击绑定', ctrl: ['pushbind', '🔔 手机推送'] },
   ];
   for (const f of feats) {
     if (f.adminOnly && !window.ME?.isAdmin) continue;
     const c = vcard('feat', el('div', 'icon', f.icon), el('div', 'name', f.name), el('div', 'desc', f.desc), el('span', 'cmd', f.cmd));
     if (f.v) c.onclick = () => { document.querySelector(`.vtab[data-v="${f.v}"]`).click(); };
+    else if (f.ctrl) c.onclick = () => openCtrl(f.ctrl[0], f.ctrl[1]);
     grid.appendChild(c);
   }
   fcard.appendChild(grid);
