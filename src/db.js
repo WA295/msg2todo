@@ -113,6 +113,21 @@ CREATE TABLE IF NOT EXISTS resources (
   sort        INTEGER DEFAULT 0,
   created_at  TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS packages (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  owner      TEXT NOT NULL,
+  code       TEXT NOT NULL,              -- 取件码
+  location   TEXT DEFAULT '',            -- 驿站/柜子
+  status     TEXT DEFAULT 'pending',     -- pending | done
+  created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS posts (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  owner      TEXT NOT NULL,
+  name       TEXT DEFAULT '',
+  content    TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
 `);
 
 // 迁移:todos(notified_at 去重 / notified_adv_at 提前提醒去重 / owner 多用户归属)
@@ -592,3 +607,48 @@ export function deleteResource(id) {
 
 // 首次启动内置学习资源
 seedResources();
+
+/* ================= 快递 ================= */
+
+export function addPackage(owner, code, location) {
+  const r = db.prepare('INSERT INTO packages (owner, code, location, status, created_at) VALUES (?, ?, ?, \'pending\', ?)')
+    .run(owner, code, location, new Date().toISOString());
+  events.emit('change');
+  return Number(r.lastInsertRowid);
+}
+
+export function listPackages(owner) {
+  return db.prepare('SELECT * FROM packages WHERE owner = ? ORDER BY status, id DESC').all(owner)
+    .map((r) => ({ ...r, id: Number(r.id) }));
+}
+
+export function markPackageDone(id) {
+  db.prepare("UPDATE packages SET status = 'done' WHERE id = ?").run(id);
+  events.emit('change');
+}
+
+export function deletePackage(id) {
+  const r = db.prepare('DELETE FROM packages WHERE id = ?').run(id);
+  if (r.changes > 0) events.emit('change');
+  return r.changes > 0;
+}
+
+/* ================= 留言板 ================= */
+
+export function addPost(owner, name, content) {
+  const r = db.prepare('INSERT INTO posts (owner, name, content, created_at) VALUES (?, ?, ?, ?)')
+    .run(owner, name, content, new Date().toISOString());
+  events.emit('change');
+  return Number(r.lastInsertRowid);
+}
+
+export function listPosts(limit = 100) {
+  return db.prepare('SELECT * FROM posts ORDER BY id DESC LIMIT ?').all(limit)
+    .map((r) => ({ ...r, id: Number(r.id) }));
+}
+
+export function deletePost(id) {
+  const r = db.prepare('DELETE FROM posts WHERE id = ?').run(id);
+  if (r.changes > 0) events.emit('change');
+  return r.changes > 0;
+}

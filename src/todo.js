@@ -10,6 +10,7 @@ import { handleWeatherCommand } from './weather.js';
 import { handleCountdownCommand } from './countdown.js';
 import { handleSleepCommand } from './sleep.js';
 import { handleExcelImport } from './excelImport.js';
+import { handlePackageCommand } from './packages.js';
 
 /**
  * 统一的消息处理管线
@@ -50,6 +51,9 @@ export async function handleIncoming(msg) {
 
   // 睡觉提醒指令(「睡觉提醒 23:00」等)
   if (await handleSleepCommand(msg)) return null;
+
+  // 快递指令(「快递 8-1234 丰巢」等)
+  if (await handlePackageCommand(msg)) return null;
 
   // 番茄钟指令(「番茄 25」/「番茄统计」等)
   if (await handlePomodoroCommand(msg)) return null;
