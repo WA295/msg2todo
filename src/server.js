@@ -10,6 +10,7 @@ import { startCountdownReminder, stopCountdownReminder } from './countdown.js';
 import { startClassReminder, stopClassReminder } from './classReminder.js';
 import { startWeeklyReview, stopWeeklyReview } from './weeklyReview.js';
 import { startSleepReminder, stopSleepReminder } from './sleep.js';
+import { startHealthCheck, stopHealthCheck } from './healthCheck.js';
 
 /** 启动全部服务,返回句柄(供停止时使用)。CLI 与桌面版共用。 */
 export function startAll() {
@@ -27,6 +28,7 @@ export function startAll() {
   startClassReminder();
   startWeeklyReview();
   startSleepReminder();
+  startHealthCheck();
   return handles;
 }
 
@@ -40,6 +42,7 @@ export async function stopAll(handles) {
   stopClassReminder();
   stopWeeklyReview();
   stopSleepReminder();
+  stopHealthCheck();
   if (handles?.wechat?.stop) {
     try { await handles.wechat.stop(); } catch (e) { console.warn('[停止] 微信:', e.message); }
   }

@@ -129,6 +129,12 @@ CREATE TABLE IF NOT EXISTS posts (
   content    TEXT NOT NULL,
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS announcements (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  title      TEXT NOT NULL,
+  content    TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
 `);
 
 // 迁移:todos(notified_at 去重 / notified_adv_at 提前提醒去重 / owner 多用户归属)
@@ -141,6 +147,15 @@ if (!todoCols.includes('notified_adv_at')) {
 }
 if (!todoCols.includes('owner')) {
   db.exec("ALTER TABLE todos ADD COLUMN owner TEXT DEFAULT ''");
+}
+if (!todoCols.includes('notified_d3')) {
+  db.exec('ALTER TABLE todos ADD COLUMN notified_d3 TEXT');
+}
+if (!todoCols.includes('notified_d1')) {
+  db.exec('ALTER TABLE todos ADD COLUMN notified_d1 TEXT');
+}
+if (!todoCols.includes('notified_h3')) {
+  db.exec('ALTER TABLE todos ADD COLUMN notified_h3 TEXT');
 }
 
 const insTodo = db.prepare(`
@@ -655,6 +670,26 @@ export function listPosts(limit = 100) {
 
 export function deletePost(id) {
   const r = db.prepare('DELETE FROM posts WHERE id = ?').run(id);
+  if (r.changes > 0) events.emit('change');
+  return r.changes > 0;
+}
+
+/* ================= 公告 ================= */
+
+export function addAnnouncement(title, content) {
+  const r = db.prepare('INSERT INTO announcements (title, content, created_at) VALUES (?, ?, ?)')
+    .run(title, content, new Date().toISOString());
+  events.emit('change');
+  return Number(r.lastInsertRowid);
+}
+
+export function listAnnouncements(limit = 20) {
+  return db.prepare('SELECT * FROM announcements ORDER BY id DESC LIMIT ?').all(limit)
+    .map((r) => ({ ...r, id: Number(r.id) }));
+}
+
+export function deleteAnnouncement(id) {
+  const r = db.prepare('DELETE FROM announcements WHERE id = ?').run(id);
   if (r.changes > 0) events.emit('change');
   return r.changes > 0;
 }

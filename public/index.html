@@ -728,8 +728,7 @@ async function openCtrl(id, title) {
     }));
   } else if (id === 'gpa') {
     const rowsWrap = el('div');
-    const out = el('div', 'sub');
-    out.style.cssText = 'font-size:14px;color:var(--accent);margin-top:10px;font-weight:600';
+    const out = el('div', 'sub');    out.style.cssText = 'font-size:14px;color:var(--accent);margin-top:10px;font-weight:600';
     const items = [];
     const p4 = (sc) => (sc >= 90 ? 4.0 : sc >= 85 ? 3.7 : sc >= 82 ? 3.3 : sc >= 78 ? 3.0 : sc >= 75 ? 2.7 : sc >= 72 ? 2.3 : sc >= 68 ? 2.0 : sc >= 64 ? 1.5 : sc >= 60 ? 1.0 : 0);
     const calc = () => {
@@ -759,6 +758,42 @@ async function openCtrl(id, title) {
     body.appendChild(rowsWrap);
     body.appendChild(mkBtn('➕ 加一行', addRow, 'mini-btn'));
     body.appendChild(out);
+  } else if (id === 'ann') {
+    if (!window.ME?.isAdmin) {
+      body.appendChild(el('div', 'sub', '仅管理员可发布公告'));
+      return;
+    }
+    const list = await fetch('/api/announcements').then((r) => r.json()).catch(() => ({ announcements: [] }));
+    for (const a of list.announcements) {
+      const r = el('div', 'cd-item');
+      const left = el('div');
+      left.appendChild(el('b', null, a.title));
+      left.appendChild(el('div', 'sub', a.content));
+      r.appendChild(left);
+      const del = el('button', 'del', '✕');
+      del.onclick = async () => {
+        if (!confirm(`删除公告「${a.title}」?`)) return;
+        await fetch(`/api/announcements/${a.id}`, { method: 'DELETE' });
+        openCtrl('ann', '📢 公告');
+      };
+      r.appendChild(del);
+      body.appendChild(r);
+    }
+    const tI = mkInput('公告标题', '');
+    const cT = el('textarea');
+    cT.className = 'search';
+    cT.placeholder = '公告内容(将推送给全体学生的 QQ/手机推送/App)';
+    cT.rows = 3;
+    cT.style.width = '100%';
+    cT.style.resize = 'vertical';
+    body.appendChild(row('标题', tI));
+    body.appendChild(row('内容', cT));
+    body.appendChild(mkBtn('📢 发布公告(全员广播)', async () => {
+      if (!tI.value.trim() || !cT.value.trim()) { alert('标题和内容必填'); return; }
+      await post('/api/announcements', { title: tI.value.trim(), content: cT.value.trim() });
+      alert('公告已发布,已推送给全体学生');
+      openCtrl('ann', '📢 公告');
+    }));
   }
 }
 
@@ -818,6 +853,38 @@ function renderHome(d) {
 
   // 消息推送卡片(异步渲染)
   renderPushCard(frag);
+
+  // 公告(有则显示)
+  if (d.announcements && d.announcements.length) {
+    const acard = el('div', 'card');
+    acard.style.cssText = 'background:#fef3c7;border-color:#fcd34d';
+    acard.appendChild(el('div', 'h2', '📢 最新公告'));
+    for (const a of d.announcements.slice(0, 3)) {
+      const item = el('div', 'cd-item');
+      const left = el('div');
+      left.appendChild(el('b', null, a.title));
+      left.appendChild(el('div', 'sub', a.content));
+      item.appendChild(left);
+      item.appendChild(el('span', 'sub', new Date(a.created_at).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })));
+      acard.appendChild(item);
+    }
+    frag.appendChild(acard);
+  }
+
+  // 新手指引(学生且无课表时)
+  if (!window.ME?.isAdmin && !localStorage.getItem('guideDone') && !d.users.length) {
+    const g = el('div', 'card');
+    g.style.cssText = 'background:var(--accent-soft);border-color:var(--accent)';
+    g.appendChild(el('div', 'h2', '🎓 三步开始使用'));
+    const steps = el('div', 'cheat');
+    steps.innerHTML = '1️⃣ 加 QQ 机器人好友 <b>2127511079</b>,把快递通知/待办消息发给它<br>2️⃣ 到「📚 课表」页上传你的课表文件,开启每晚提醒<br>3️⃣ 点上方「🔔 开启推送」,提醒直达手机锁屏';
+    g.appendChild(steps);
+    const ok = el('button', 'btn', '知道了');
+    ok.style.marginTop = '8px';
+    ok.onclick = () => { localStorage.setItem('guideDone', '1'); loadHome(); };
+    g.appendChild(ok);
+    frag.appendChild(g);
+  }
 
   // 天气
   if (d.weather) {
@@ -902,6 +969,7 @@ function renderHome(d) {
     { icon: '📚', name: '课表', desc: '发文本或 xlsx 文件导入,每晚提醒', cmd: '点击上传文件', v: 'sched' },
     { icon: '🍅', name: '番茄钟', desc: '专注计时,到点提醒', cmd: '点击开始专注', ctrl: ['pomo', '🍅 番茄钟'] },
     { icon: '🌤', name: '天气', desc: '每日天气+带伞提示', cmd: '点击设置城市', ctrl: ['weather', '🌤 天气'] },
+    { icon: '📢', name: '公告', desc: '发布公告,全员广播', cmd: '点击发布', ctrl: ['ann', '📢 公告'], adminOnly: true },
     { icon: '⏳', name: '倒计时', desc: '考试/放假天数提醒', cmd: '点击添加', ctrl: ['cd', '⏳ 倒计时'] },
     { icon: '📦', name: '快递', desc: '取件码记录,取完标记', cmd: '点击记录', ctrl: ['pkg', '📦 快递'] },
     { icon: '🧮', name: '绩点计算', desc: '加权平均分/绩点换算', cmd: '点击计算', ctrl: ['gpa', '🧮 绩点计算器'] },
