@@ -9,6 +9,14 @@ export function startHealthCheck() {
   console.log('[健康] 自检已启用(QQ 掉线将告警管理员)');
   timer = setInterval(check, 5 * 60 * 1000);
   check();
+  // 启动 3 分钟后补一次基线检查:若 QQ 始终离线则告警
+  setTimeout(() => {
+    if (liveStatus.qq === 'off' && lastQq === 'off') {
+      console.warn('[健康] 启动后 QQ 持续离线,已告警管理员');
+      sendBark('🚨 QQ 机器人离线', '机器人启动后一直未连接,请重新扫码登录。');
+      sendPushDeer('🚨 QQ 机器人离线', '机器人一直未连接,请重新扫码登录');
+    }
+  }, 3 * 60 * 1000);
 }
 
 export function stopHealthCheck() {
