@@ -1,11 +1,11 @@
 /* msg2todo Web Push Service Worker */
 self.addEventListener('push', (event) => {
-  let data = { title: '校园生活管家', body: '' };
+  let data = { title: 'iTodo', body: '' };
   try {
     data = event.data ? event.data.json() : data;
   } catch {}
   event.waitUntil(
-    self.registration.showNotification(data.title || '校园生活管家', {
+    self.registration.showNotification(data.title || 'iTodo', {
       body: data.body || '',
       icon: '/icon-192.png',
       badge: '/icon-192.png',

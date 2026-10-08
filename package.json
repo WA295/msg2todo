@@ -41,7 +41,7 @@
   },
   "build": {
     "appId": "com.robot.msg2todo",
-    "productName": "msg2todo",
+    "productName": "iTodo",
     "asar": false,
     "npmRebuild": true,
     "directories": {
