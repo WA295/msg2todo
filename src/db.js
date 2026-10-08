@@ -143,11 +143,6 @@ CREATE TABLE IF NOT EXISTS announcements (
   content    TEXT NOT NULL,
   created_at TEXT NOT NULL
 );
-CREATE TABLE IF NOT EXISTS jokes (
-  id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  content    TEXT NOT NULL,
-  created_at TEXT NOT NULL
-);
 `);
 
 // 迁移:todos(notified_at 去重 / notified_adv_at 提前提醒去重 / owner 多用户归属)
@@ -199,6 +194,9 @@ if (!suCols.includes('schedule_times')) {
 }
 if (!suCols.includes('countdown_time')) {
   db.exec('ALTER TABLE schedule_users ADD COLUMN countdown_time TEXT DEFAULT \'\'');
+}
+if (!suCols.includes('background')) {
+  db.exec('ALTER TABLE schedule_users ADD COLUMN background TEXT DEFAULT \'\'');
 }
 
 // 迁移:weather_users 多时段
@@ -294,8 +292,8 @@ export function upsertScheduleUser(owner, fields) {
   const cur = getScheduleUser(owner);
   if (!cur) {
     db.prepare(`
-      INSERT INTO schedule_users (owner, name, semester_start, notify_time, schedule_times, countdown_time, push_kind, push_key, class_remind, sleep_time, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO schedule_users (owner, name, semester_start, notify_time, schedule_times, countdown_time, background, push_kind, push_key, class_remind, sleep_time, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       owner,
       fields.name || '',
@@ -303,6 +301,7 @@ export function upsertScheduleUser(owner, fields) {
       fields.notifyTime ?? '',
       fields.scheduleTimes ?? '',
       fields.countdownTime ?? '',
+      fields.background ?? '',
       fields.pushKind ?? '',
       fields.pushKey ?? '',
       fields.classRemind ?? 1,
@@ -317,6 +316,7 @@ export function upsertScheduleUser(owner, fields) {
         notify_time = COALESCE(?, notify_time),
         schedule_times = COALESCE(?, schedule_times),
         countdown_time = COALESCE(?, countdown_time),
+        background = COALESCE(?, background),
         push_kind = COALESCE(?, push_kind),
         push_key = COALESCE(?, push_key),
         class_remind = COALESCE(?, class_remind),
@@ -329,6 +329,7 @@ export function upsertScheduleUser(owner, fields) {
       fields.notifyTime ?? null,
       fields.scheduleTimes ?? null,
       fields.countdownTime ?? null,
+      fields.background ?? null,
       fields.pushKind ?? null,
       fields.pushKey ?? null,
       fields.classRemind ?? null,
@@ -725,81 +726,3 @@ export function deleteAnnouncement(id) {
   return r.changes > 0;
 }
 
-/* ================= 每日一句(冷笑话/热梗) ================= */
-
-const SEED_JOKES = [
-  '为什么程序员总分不清万圣节和圣诞节?因为 Oct 31 == Dec 25。',
-  '0 碰见 8,说:"兄弟,系个腰带就以为自己了不起啦?"',
-  '两颗番茄过马路,一辆车飞驰而过,其中一颗没躲开被压扁了,另一颗指着它大笑:"哈哈!番茄酱!"',
-  '面试官:"你会做什么菜?"我:"西红柿炒番茄,主打一个红红火火。"',
-  '老师:"这道题我讲过多少遍了?!"同学:"就讲了一遍,但骂了很多遍。"',
-  '我问室友:"你觉得我瘦了吗?"室友:"你只是换了个显瘦的发型。"',
-  '为什么数学书总是很忧伤?因为问题太多了。',
-  '老师:"请用\'果然\'造句。"学生:"我先吃了个苹果,果然饱了。"',
-  '我问ChatGPT:"你会背圆周率吗?"它说:"3.14...后面忘了,但我会算。"',
-  '为什么鱼不会说冷笑话?因为它们怕冷。',
-  '我:"最近在减肥。"朋友:"效果如何?"我:"效果很好,现在胃口更好了。"',
-  '家人们谁懂啊,今天又是被早八支配的一天。',
-  '尊嘟假嘟?这也太离谱了吧。',
-  '你人还怪好的嘞。',
-  '泰裤辣!今天的课表居然没有早八。',
-  '当代大学生精神状态:i人躲在角落,e人全场乱杀。',
-  '遥遥领先!我的番茄钟已经连打 10 天了。',
-  '显眼包本包:全班就我一个人记得交作业。',
-  '主打一个陪伴,图书馆一日游,书一页没翻。',
-  '听劝:昨天早睡了一小时,今天整个人都升华了。',
-  '命运的齿轮开始转动,从你看到这句话开始。',
-  '泼天的富贵什么时候轮到我?先泼个考过四级吧。',
-  '今天和饭搭子、课搭子、图书馆搭子,搭了一天的子。',
-  '已读乱回:老师问作业呢?我回了个表情包。',
-  '情绪价值拉满:室友说我瘦了,我请他喝了奶茶。',
-  '电子榨菜配午饭,精神状态良好。',
-  '栓Q,我真的会谢,明天又是满课的一天。',
-  '绝绝子,这周的学习资源页又上新了。',
-  '问:什么东西越洗越脏?答:水。',
-  '医生说:"你身体很健康,但数学可能不太好。"我:"为什么?"医生:"你体检单上的年龄填了 250。"',
-  '为什么手机掉进水里不会沉?因为它是"按得住的安卓机"。',
-  '程序员最讨厌的两件事:1.写文档 2.别人不写文档。',
-  '小明去面试,面试官问:"你有什么特长?"小明:"我特别能吃。"面试官:"这也算?"小明:"能吃到让老板破产。"',
-  '为什么黄瓜总是绿色的?因为它不想变黄。',
-  '吸血鬼为什么不喝奶茶?因为他们怕珍珠(真实)。',
-  '今天问了图书馆阿姨:"阿姨,这里能充电吗?"阿姨:"可以,但只能充十分钟,多了算插队。"',
-  '室友的闹钟响了 20 分钟,他翻了个身说:"再睡五分钟,尊嘟。"',
-  '上早八的路上,我和风赛跑,结果两个都迟到了。',
-];
-
-export function seedJokes() {
-  const c = db.prepare('SELECT COUNT(*) c FROM jokes').get().c;
-  if (Number(c) > 0) return;
-  const ins = db.prepare('INSERT INTO jokes (content, created_at) VALUES (?, ?)');
-  SEED_JOKES.forEach((content) => ins.run(content, new Date().toISOString()));
-  console.log(`[每日一句] 已内置 ${SEED_JOKES.length} 条冷笑话/热梗`);
-}
-
-/** 今日一句:按日期轮换,全部人看到同一条(制造共同话题) */
-export function jokeOfDay() {
-  const rows = db.prepare('SELECT * FROM jokes ORDER BY id').all();
-  if (!rows.length) return null;
-  const day = Math.floor(Date.now() / 86400000);
-  return rows[day % rows.length].content;
-}
-
-export function listJokes() {
-  return db.prepare('SELECT * FROM jokes ORDER BY id').all().map((r) => ({ ...r, id: Number(r.id) }));
-}
-
-export function addJoke(content) {
-  const r = db.prepare('INSERT INTO jokes (content, created_at) VALUES (?, ?)')
-    .run(content, new Date().toISOString());
-  events.emit('change');
-  return Number(r.lastInsertRowid);
-}
-
-export function deleteJoke(id) {
-  const r = db.prepare('DELETE FROM jokes WHERE id = ?').run(id);
-  if (r.changes > 0) events.emit('change');
-  return r.changes > 0;
-}
-
-// 首次启动内置每日一句
-seedJokes();
