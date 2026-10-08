@@ -104,6 +104,15 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
   user_agent TEXT DEFAULT '',
   created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS resources (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  category    TEXT NOT NULL,
+  title       TEXT NOT NULL,
+  url         TEXT NOT NULL,
+  description TEXT DEFAULT '',
+  sort        INTEGER DEFAULT 0,
+  created_at  TEXT NOT NULL
+);
 `);
 
 // 迁移:todos(notified_at 去重 / notified_adv_at 提前提醒去重 / owner 多用户归属)
@@ -508,3 +517,78 @@ export function listPushSubscriptions(owner) {
 export function deletePushSubscription(owner, endpoint) {
   db.prepare('DELETE FROM push_subscriptions WHERE owner = ? AND endpoint = ?').run(owner, endpoint);
 }
+
+/* ================= 学习资源 ================= */
+
+/** 首次启动时内置一批高质量学习资源 */
+const SEED_RESOURCES = [
+  ['综合课程', '中国大学MOOC', 'https://www.icourse163.org', '国内最大的慕课平台,名校课程免费学'],
+  ['综合课程', '学堂在线', 'https://www.xuetangx.com', '清华发起的中文慕课平台'],
+  ['综合课程', '国家高等教育智慧教育平台', 'https://higher.smartedu.cn', '教育部官方课程平台'],
+  ['综合课程', 'B站大学', 'https://www.bilibili.com', '海量免费课程(搜索课程名+关键词)'],
+  ['综合课程', '网易公开课', 'https://open.163.com', '国内外名校公开课'],
+  ['综合课程', 'Coursera', 'https://www.coursera.org', '国际名校课程(可申请助学金)'],
+  ['计算机', 'LeetCode', 'https://leetcode.cn', '刷题必备,面试算法'],
+  ['计算机', '洛谷', 'https://www.luogu.com.cn', '算法竞赛刷题社区'],
+  ['计算机', 'GitHub', 'https://github.com', '全球最大代码托管平台'],
+  ['计算机', '菜鸟教程', 'https://www.runoob.com', '编程入门速查手册'],
+  ['计算机', 'MDN Web 文档', 'https://developer.mozilla.org/zh-CN', 'Web 开发权威文档'],
+  ['计算机', 'CS自学指南', 'https://csdiy.wiki', '计算机自学路线图'],
+  ['计算机', 'OI Wiki', 'https://oi-wiki.org', '算法竞赛知识库'],
+  ['计算机', '牛客网', 'https://www.nowcoder.com', '笔试面试真题'],
+  ['数学', '3Blue1Brown', 'https://space.bilibili.com/88461692', '动画讲数学,直观到上瘾'],
+  ['数学', '可汗学院', 'https://zh.khanacademy.org', '从零开始的自学数学'],
+  ['数学', 'WolframAlpha', 'https://www.wolframalpha.com', '计算知识引擎,解数学题'],
+  ['数学', '数学乐', 'https://www.shuxuele.com', '通俗数学入门'],
+  ['英语', '每日英语听力', 'https://dict.eudic.net/ting', '听力磨耳朵'],
+  ['英语', '百词斩', 'https://www.baicizhan.com', '背单词'],
+  ['英语', '欧路词典', 'https://dict.eudic.net', '词典+背单词一体'],
+  ['英语', 'TED', 'https://www.ted.com', '演讲练听力,开阔视野'],
+  ['考试考证', '全国计算机等级考试', 'https://ncre.neea.edu.cn', 'NCRE 官方报名入口'],
+  ['考试考证', '中国教育考试网', 'https://www.neea.edu.cn', '四六级/教资等考试官网'],
+  ['考试考证', '研招网', 'https://yz.chsi.com.cn', '考研官方信息'],
+  ['论文学术', '知网 CNKI', 'https://www.cnki.net', '中文论文检索(校园网免费)'],
+  ['论文学术', 'Google 学术', 'https://scholar.google.com', '学术搜索'],
+  ['论文学术', 'arXiv', 'https://arxiv.org', '预印本论文库(数理/计算机)'],
+  ['论文学术', '万方数据', 'https://www.wanfangdata.com.cn', '中文文献检索'],
+  ['电子书', '微信读书', 'https://weread.qq.com', '海量电子书'],
+  ['电子书', '鸠摩搜书', 'https://www.jiumodiary.com', '电子书搜索引擎'],
+  ['电子书', '熊猫搜书', 'https://xmsoushu.com', '聚合多个电子书源'],
+  ['工具', 'Overleaf', 'https://www.overleaf.com', '在线 LaTeX 论文排版'],
+  ['工具', 'ProcessOn', 'https://www.processon.com', '在线画流程图/思维导图'],
+  ['工具', '幕布', 'https://mubu.com', '大纲笔记+思维导图'],
+  ['竞赛', '全国大学生数学建模竞赛', 'https://www.mcm.edu.cn', '数模国赛官网'],
+  ['竞赛', '蓝桥杯', 'https://dasai.lanqiao.cn', '程序设计竞赛'],
+  ['竞赛', '挑战杯', 'https://www.tiaozhanbei.net', '大学生课外学术科技竞赛'],
+];
+
+export function seedResources() {
+  const c = db.prepare('SELECT COUNT(*) c FROM resources').get().c;
+  if (Number(c) > 0) return;
+  const ins = db.prepare('INSERT INTO resources (category, title, url, description, sort, created_at) VALUES (?, ?, ?, ?, ?, ?)');
+  SEED_RESOURCES.forEach(([category, title, url, description], i) => {
+    ins.run(category, title, url, description, i, new Date().toISOString());
+  });
+  console.log(`[资源] 已内置 ${SEED_RESOURCES.length} 条学习资源`);
+}
+
+export function listResources() {
+  return db.prepare('SELECT * FROM resources ORDER BY category, sort, id').all()
+    .map((r) => ({ ...r, id: Number(r.id) }));
+}
+
+export function addResource({ category, title, url, description }) {
+  const r = db.prepare('INSERT INTO resources (category, title, url, description, sort, created_at) VALUES (?, ?, ?, ?, 999, ?)')
+    .run(category, title, url, description, new Date().toISOString());
+  events.emit('change');
+  return Number(r.lastInsertRowid);
+}
+
+export function deleteResource(id) {
+  const r = db.prepare('DELETE FROM resources WHERE id = ?').run(id);
+  if (r.changes > 0) events.emit('change');
+  return r.changes > 0;
+}
+
+// 首次启动内置学习资源
+seedResources();
