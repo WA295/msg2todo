@@ -13,31 +13,33 @@
 <link rel="apple-touch-icon" href="/icon-192.png">
 <style>
   :root {
-    --bg: #eef0f6;
-    --bg-grad: radial-gradient(1200px 500px at 50% -10%, #dbe3ff 0%, transparent 60%), var(--bg);
+    --bg: #f7f8fa;
+    --bg-grad: var(--bg);
     --card: #ffffff;
-    --line: #e7eaf1;
-    --text: #1a2033;
-    --muted: #7b849c;
-    --accent: #6366f1;
-    --accent-2: #8b5cf6;
-    --accent-soft: #eef0fe;
-    --high: #ef4444; --mid: #f59e0b; --low: #10b981;
+    --line: #e5e6eb;
+    --text: #1f2329;
+    --muted: #646a73;
+    --accent: #3370ff;
+    --accent-2: #4c9aff;
+    --accent-soft: #eef4ff;
+    --high: #f53f3f; --mid: #ff7d00; --low: #00b42a;
     --wx: #07c160; --qq: #12b7f5; --manual: #9ca3af;
-    --shadow: 0 1px 3px rgba(23, 30, 60, .05), 0 8px 24px -12px rgba(23, 30, 60, .12);
-    --shadow-lg: 0 2px 6px rgba(23, 30, 60, .06), 0 20px 44px -16px rgba(23, 30, 60, .22);
+    --shadow: 0 1px 2px rgba(31, 35, 41, .04), 0 4px 16px -8px rgba(31, 35, 41, .08);
+    --shadow-lg: 0 2px 4px rgba(31, 35, 41, .05), 0 16px 32px -12px rgba(31, 35, 41, .16);
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg: #0e1017;
-      --bg-grad: radial-gradient(1200px 500px at 50% -10%, #232a4d 0%, transparent 60%), var(--bg);
-      --card: #171a24;
-      --line: #262b3a;
-      --text: #e6e9f2;
-      --muted: #8b93a8;
-      --accent-soft: #232b52;
-      --shadow: 0 1px 3px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.5);
-      --shadow-lg: 0 2px 6px rgba(0,0,0,.45), 0 20px 44px -16px rgba(0,0,0,.6);
+      --bg: #121212;
+      --bg-grad: var(--bg);
+      --card: #1e1e1e;
+      --line: #333333;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --accent: #4096ff;
+      --accent-2: #6cb1ff;
+      --accent-soft: #1d2b45;
+      --shadow: 0 1px 2px rgba(0,0,0,.5), 0 4px 16px -8px rgba(0,0,0,.5);
+      --shadow-lg: 0 2px 4px rgba(0,0,0,.5), 0 16px 32px -12px rgba(0,0,0,.65);
     }
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -52,38 +54,40 @@
   .wrap { max-width: 880px; margin: 0 auto; padding: 0 16px 96px; }
 
   /* ── Hero 头部 ── */
-  header { padding: 22px 4px 16px; }
+  header { padding: 20px 2px 14px; }
   .hero {
-    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 55%, #a855f7 100%);
-    color: #fff;
-    border-radius: 20px;
-    padding: 20px 22px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    color: var(--text);
+    border-radius: 16px;
+    padding: 18px 22px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
     flex-wrap: wrap;
-    box-shadow: 0 12px 32px -10px rgba(99, 102, 241, .55);
+    box-shadow: var(--shadow);
     animation: fadeUp .4s ease both;
   }
-  .hero h1 { font-size: 20px; font-weight: 700; letter-spacing: .5px; }
-  .hero .date { font-size: 12.5px; opacity: .85; margin-top: 4px; }
+  .hero h1 { font-size: 20px; font-weight: 700; letter-spacing: .3px; }
+  .hero h1 .brand-dot { color: var(--accent); }
+  .hero .date { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
   .hero .actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
   .hero .actions .mini-btn {
-    background: rgba(255,255,255,.16);
-    border: 1px solid rgba(255,255,255,.28);
-    color: #fff;
-    backdrop-filter: blur(6px);
+    background: var(--card);
+    border: 1px solid var(--line);
+    color: var(--text);
   }
+  .hero .actions .mini-btn:hover { border-color: var(--accent); color: var(--accent); }
   .hero .conns { display: flex; gap: 6px; flex-wrap: wrap; }
-  .chip { padding: 3px 10px; border-radius: 999px; font-size: 11.5px; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.22); color: rgba(255,255,255,.92); display: inline-flex; align-items: center; gap: 5px; backdrop-filter: blur(6px); }
-  .chip .light { width: 7px; height: 7px; border-radius: 50%; background: rgba(255,255,255,.4); }
-  .chip.ok .light { background: #4ade80; box-shadow: 0 0 6px #4ade80; }
-  .stats { font-size: 12.5px; color: rgba(255,255,255,.9); }
-  .stats b { color: #fff; font-size: 14px; margin: 0 2px; }
-  .stats b.hot { color: #fecaca; }
-  .mini-btn { border: 1px solid var(--line); background: var(--card); padding: 6px 13px; border-radius: 999px; cursor: pointer; font-size: 12px; color: var(--text); transition: all .15s; }
-  .mini-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .chip { padding: 3px 10px; border-radius: 999px; font-size: 11.5px; background: var(--bg); border: 1px solid var(--line); color: var(--muted); display: inline-flex; align-items: center; gap: 5px; }
+  .chip .light { width: 7px; height: 7px; border-radius: 50%; background: #c3c8d1; }
+  .chip.ok .light { background: #00b42a; box-shadow: 0 0 6px rgba(0, 180, 42, .5); }
+  .stats { font-size: 12.5px; color: var(--muted); }
+  .stats b { color: var(--text); font-size: 14px; margin: 0 2px; }
+  .stats b.hot { color: var(--high); }
+  .mini-btn { border: 1px solid var(--line); background: var(--card); padding: 6px 13px; border-radius: 8px; cursor: pointer; font-size: 12px; color: var(--text); transition: all .15s; }
+  .mini-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 
   /* ── 卡片 ── */
   .card {
@@ -106,25 +110,24 @@
 
   .btn {
     border: none;
-    background: linear-gradient(135deg, #6366f1, #8b5cf6);
+    background: var(--accent);
     color: #fff;
     padding: 9px 20px;
-    border-radius: 12px;
+    border-radius: 8px;
     cursor: pointer;
     font-size: 13px;
     font-weight: 600;
     white-space: nowrap;
     transition: all .15s;
-    box-shadow: 0 4px 12px -4px rgba(99, 102, 241, .5);
   }
-  .btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px -4px rgba(99, 102, 241, .6); }
+  .btn:hover { background: var(--accent-2); }
   .btn:active { transform: scale(.97); }
 
   /* ── 总览 ── */
   .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
   .stat-card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 15px 10px; text-align: center; box-shadow: var(--shadow); transition: transform .15s; }
   .stat-card:hover { transform: translateY(-2px); }
-  .stat-card .num { font-size: 24px; font-weight: 800; background: linear-gradient(135deg, #6366f1, #a855f7); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .stat-card .num { font-size: 24px; font-weight: 800; color: var(--accent); }
   .stat-card .lbl { font-size: 11.5px; color: var(--muted); margin-top: 3px; }
   .feat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
   .feat { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 15px 12px; cursor: pointer; transition: all .18s; position: relative; display: block; }
@@ -137,7 +140,7 @@
   .tl li { display: flex; align-items: center; gap: 10px; padding: 9px 12px; font-size: 13.5px; border-radius: 10px; }
   .tl li:nth-child(odd) { background: var(--bg); }
   .tl .t { font-weight: 700; color: var(--accent); min-width: 96px; }
-  .weather-box { background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 60%, #d946ef 120%); color: #fff; border-radius: 18px; padding: 20px; margin-bottom: 14px; box-shadow: 0 12px 30px -10px rgba(139, 92, 246, .5); animation: fadeUp .4s ease both; }
+  .weather-box { background: linear-gradient(135deg, #3370ff 0%, #4096ff 100%); color: #fff; border-radius: 16px; padding: 20px; margin-bottom: 14px; box-shadow: 0 8px 24px -12px rgba(51, 112, 255, .4); animation: fadeUp .4s ease both; }
   .weather-box .w-lines { font-size: 13.5px; line-height: 1.95; opacity: .97; white-space: pre-line; }
   .tom-cls { display: flex; align-items: center; gap: 10px; padding: 8px 11px; font-size: 13.5px; border-radius: 10px; }
   .tom-cls:nth-child(odd) { background: var(--bg); }
@@ -152,7 +155,7 @@
   .vtabs { display: flex; gap: 6px; margin-bottom: 14px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: none; }
   .vtabs::-webkit-scrollbar { display: none; }
   .vtab { border: 1px solid var(--line); background: var(--card); padding: 9px 18px; border-radius: 12px; cursor: pointer; font-size: 13.5px; color: var(--muted); white-space: nowrap; transition: all .15s; }
-  .vtab.on { background: linear-gradient(135deg, #6366f1, #8b5cf6); color: #fff; border-color: transparent; font-weight: 700; box-shadow: 0 6px 16px -6px rgba(99,102,241,.6); }
+  .vtab.on { background: var(--accent); color: #fff; border-color: transparent; font-weight: 600; }
 
   /* ── 课表 ── */
   .s-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
