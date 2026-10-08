@@ -1942,6 +1942,19 @@ function renderSettings(s) {
     a.appendChild(el('span', 'sval', '云端每日自动备份'));
     a.appendChild(el('span', 'arrow', '›'));
     bk.appendChild(a);
+    const sendRow = el('div', 'set-row');
+    sendRow.appendChild(el('span', 'sicon', '📚'));
+    sendRow.appendChild(el('span', 'sname', '立即发送「明天课程」通知'));
+    sendRow.appendChild(el('span', 'sval', '给所有上传了课表的同学'));
+    sendRow.appendChild(el('span', 'arrow', '›'));
+    sendRow.onclick = async () => {
+      if (!confirm('立即给所有上传了课表的同学发送「明天课程」通知?')) return;
+      toast('发送中…');
+      const r = await fetch('/api/admin/notify-schedule-now', { method: 'POST' });
+      const d = await r.json().catch(() => ({}));
+      toast(r.ok ? `✅ 已发送给 ${d.sent} 人` : '❌ ' + (d.error || '失败'));
+    };
+    bk.appendChild(sendRow);
     frag.appendChild(bk);
   }
 
