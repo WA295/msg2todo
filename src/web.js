@@ -14,7 +14,8 @@ import { buildDayText } from './schedule.js';
 import { getWeather, formatWeather } from './weather.js';
 import { parseWorkbook } from './excelImport.js';
 import { events, liveStatus } from './events.js';
-import { addPushSubscription, listPushSubscriptions, deletePushSubscription, listResources, addResource, deleteResource } from './db.js';
+import { addPushSubscription, listPushSubscriptions, deletePushSubscription, listResources, addResource, deleteResource,
+  addPackage, listPackages, markPackageDone, deletePackage, addPost, listPosts, deletePost } from './db.js';
 import { pushCountdownNow } from './countdown.js';
 
 const sseClients = new Set();
@@ -297,6 +298,65 @@ export function startWeb() {
   app.delete('/api/resources/:id', (req, res) => {
     if (!req.user.isAdmin) return res.status(403).json({ error: '仅管理员可删除' });
     if (!deleteResource(Number(req.params.id))) return res.status(404).json({ error: '资源不存在' });
+    res.json({ ok: true });
+  });
+
+  // ── 快递(App 内)──
+  app.get('/api/packages', (req, res) => {
+    const owner = req.user.isAdmin ? 'qq:1487138742' : req.user.owner;
+    res.json({ packages: listPackages(owner) });
+  });
+
+  app.post('/api/packages', express.json(), (req, res) => {
+    const owner = req.user.isAdmin ? 'qq:1487138742' : req.user.owner;
+    const code = String(req.body?.code || '').trim().slice(0, 30);
+    const location = String(req.body?.location || '').trim().slice(0, 30);
+    if (!code) return res.status(400).json({ error: '取件码不能为空' });
+    const id = addPackage(owner, code, location);
+    res.json({ ok: true, id });
+  });
+
+  app.post('/api/packages/:id/done', (req, res) => {
+    const owner = req.user.isAdmin ? 'qq:1487138742' : req.user.owner;
+    const p = db.prepare('SELECT * FROM packages WHERE id = ?').get(Number(req.params.id));
+    if (!p) return res.status(404).json({ error: '快递不存在' });
+    if (!req.user.isAdmin && p.owner !== owner) return res.status(403).json({ error: '无权操作' });
+    markPackageDone(Number(req.params.id));
+    res.json({ ok: true });
+  });
+
+  app.delete('/api/packages/:id', (req, res) => {
+    const owner = req.user.isAdmin ? 'qq:1487138742' : req.user.owner;
+    const p = db.prepare('SELECT * FROM packages WHERE id = ?').get(Number(req.params.id));
+    if (!p) return res.status(404).json({ error: '快递不存在' });
+    if (!req.user.isAdmin && p.owner !== owner) return res.status(403).json({ error: '无权操作' });
+    deletePackage(Number(req.params.id));
+    res.json({ ok: true });
+  });
+
+  // ── 留言板(所有人可见)──
+  app.get('/api/posts', (req, res) => {
+    const meOwner = req.user.isAdmin ? 'qq:1487138742' : req.user.owner;
+    res.json({
+      posts: listPosts(100).map((p) => ({ ...p, mine: req.user.isAdmin || p.owner === meOwner })),
+    });
+  });
+
+  app.post('/api/posts', express.json(), (req, res) => {
+    const content = String(req.body?.content || '').trim().slice(0, 500);
+    if (!content) return res.status(400).json({ error: '内容不能为空' });
+    const owner = req.user.isAdmin ? 'qq:1487138742' : req.user.owner;
+    const name = req.user.isAdmin ? '管理员' : (req.user.name || '同学');
+    addPost(owner, name, content);
+    res.json({ ok: true });
+  });
+
+  app.delete('/api/posts/:id', (req, res) => {
+    const p = db.prepare('SELECT * FROM posts WHERE id = ?').get(Number(req.params.id));
+    if (!p) return res.status(404).json({ error: '留言不存在' });
+    const owner = req.user.isAdmin ? 'qq:1487138742' : req.user.owner;
+    if (!req.user.isAdmin && p.owner !== owner) return res.status(403).json({ error: '无权操作' });
+    deletePost(Number(req.params.id));
     res.json({ ok: true });
   });
 
