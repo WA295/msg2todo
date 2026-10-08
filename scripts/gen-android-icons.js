@@ -68,20 +68,16 @@ function distToRRect(px, py, l, t, r, b, rad) {
   return Math.hypot(px - cx, py - cy) - rad;
 }
 
-/** 苹果风格极简图标:蓝色渐变圆角方块 + 白色描边卡片 + 白色对勾 */
+/** 苹果风格极简图标(方案B):纯 iOS 蓝(#007AFF)圆角方块 + 白色对勾 */
 function drawIcon(size) {
   const buf = Buffer.alloc(size * size * 4);
   const R = size * 0.225;
   const M = size * 0.02;
   const x0 = M, y0 = M, x1 = size - M, y1 = size - M;
-  const top = [0x53, 0xc0, 0xff], bottom = [0x00, 0x7a, 0xff];
-  const cardM = size * 0.30;
-  const cardR = size * 0.09;
-  const stroke = size * 0.045;
-  const p1 = [size * 0.38, size * 0.54];
-  const p2 = [size * 0.47, size * 0.63];
-  const p3 = [size * 0.63, size * 0.41];
-  const wHalf = size * 0.055;
+  const p1 = [size * 0.36, size * 0.53];
+  const p2 = [size * 0.47, size * 0.64];
+  const p3 = [size * 0.66, size * 0.38];
+  const wHalf = size * 0.07;
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
       if (x < x0 || x > x1 || y < y0 || y > y1) continue;
@@ -89,22 +85,13 @@ function drawIcon(size) {
       const cy = y < y0 + R ? y0 + R : y > y1 - R ? y1 - R : y;
       const dx = x - cx, dy = y - cy;
       if (dx * dx + dy * dy > R * R) continue;
-      const t = (x + y - x0 - y0) / (x1 + y1 - x0 - y0);
-      let cr = Math.round(top[0] + (bottom[0] - top[0]) * t);
-      let cg = Math.round(top[1] + (bottom[1] - top[1]) * t);
-      let cb = Math.round(top[2] + (bottom[2] - top[2]) * t);
-      const cardD = distToRRect(x, y, cardM, cardM, size - cardM, size - cardM, cardR);
-      const onCard = Math.abs(cardD) <= stroke;
       const onCheck =
         distToSeg(x, y, p1[0], p1[1], p2[0], p2[1]) <= wHalf ||
         distToSeg(x, y, p2[0], p2[1], p3[0], p3[1]) <= wHalf;
-      if (onCard || onCheck) {
-        cr = cg = cb = 255;
-      }
       const i = (y * size + x) * 4;
-      buf[i] = cr;
-      buf[i + 1] = cg;
-      buf[i + 2] = cb;
+      buf[i] = onCheck ? 255 : 0x00;
+      buf[i + 1] = onCheck ? 255 : 0x7a;
+      buf[i + 2] = onCheck ? 255 : 0xff;
       buf[i + 3] = 255;
     }
   }
