@@ -1,4 +1,5 @@
 import path from 'node:path';
+import fs from 'node:fs';
 import express from 'express';
 import QRCode from 'qrcode';
 import { config } from './config.js';
@@ -359,6 +360,21 @@ export function startWeb() {
     if (!req.user.isAdmin && p.owner !== owner) return res.status(403).json({ error: '无权操作' });
     deletePost(Number(req.params.id));
     res.json({ ok: true });
+  });
+
+  // ── 数据备份下载(仅管理员)──
+  app.get('/api/backup', (req, res) => {
+    if (!req.user.isAdmin) return res.status(403).json({ error: '仅管理员可下载' });
+    const dest = path.join('/tmp', `msg2todo-backup-${Date.now()}.db`);
+    try {
+      db.exec(`VACUUM INTO '${dest}'`);
+    } catch (e) {
+      return res.status(500).json({ error: `备份失败:${e.message}` });
+    }
+    const date = new Date().toISOString().slice(0, 10);
+    res.download(dest, `msg2todo-${date}.db`, () => {
+      try { fs.unlinkSync(dest); } catch {}
+    });
   });
 
   // ── 我的设置(App 控制面板数据源)──

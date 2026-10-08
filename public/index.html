@@ -437,7 +437,11 @@ $('#addForm').onsubmit = async (e) => {
 // SSE 实时更新(浏览器断线自动重连),另加 30s 兜底轮询
 function connectSSE() {
   const es = new EventSource(BASE + '/api/events' + (AUTH ? `?token=${encodeURIComponent(AUTH)}` : ''));
-  es.addEventListener('update', () => { load(); loadSchedule(); loadHome(); });
+  let sseTimer = null;
+  es.addEventListener('update', () => {
+    clearTimeout(sseTimer);
+    sseTimer = setTimeout(() => { load(); loadSchedule(); loadHome(); }, 500);
+  });
   es.addEventListener('status', (e) => renderStatus(JSON.parse(e.data)));
   es.addEventListener('qr', (e) => {
     const d = JSON.parse(e.data);
@@ -804,6 +808,14 @@ function renderHome(d) {
   const frag = document.createDocumentFragment();
   if (!d) { box.appendChild(el('div', 'card', '加载中…')); return; }
 
+  // QQ 掉线警告横幅
+  if (d.status && d.status.qq !== 'on') {
+    const warn = el('div', 'card');
+    warn.style.cssText = 'background:#fff7ed;border-color:#fdba74';
+    warn.appendChild(el('div', 'live', '⚠️ QQ 机器人当前离线:QQ 消息与 QQ 提醒暂不可用(网页/App/其他推送不受影响)。管理员可联系管理员重新扫码登录。'));
+    frag.appendChild(warn);
+  }
+
   // 消息推送卡片(异步渲染)
   renderPushCard(frag);
 
@@ -907,11 +919,26 @@ function renderHome(d) {
   fcard.appendChild(grid);
   frag.appendChild(fcard);
 
-  // 指令速查
-  const cheat = el('div', 'card');
-  cheat.appendChild(el('div', 'h2', '💬 指令速查(私聊机器人)'));
-  cheat.appendChild(el('div', 'cheat', `<code>课表帮助</code> <code>我的课表</code> <code>明天什么课</code> <code>番茄 25</code> <code>天气</code> <code>设置天气 沈阳</code> <code>倒计时 12月12日 四六级</code> <code>睡觉提醒 23:00</code> <code>设置推送 &lt;key&gt;</code> <code>开学日期 2026-02-23</code>`));
+  // 指令速查(折叠)
+  const cheat = el('details', 'card');
+  const sum = el('summary', 'h2');
+  sum.textContent = '💬 指令速查(点击展开,QQ 私聊机器人)';
+  sum.style.cursor = 'pointer';
+  cheat.appendChild(sum);
+  cheat.appendChild(el('div', 'cheat', `<code>课表帮助</code> <code>我的课表</code> <code>明天什么课</code> <code>番茄 25</code> <code>天气</code> <code>设置天气 沈阳</code> <code>倒计时 12月12日 四六级</code> <code>睡觉提醒 23:00</code> <code>快递 8-1234 丰巢</code> <code>设置推送 &lt;key&gt;</code> <code>开学日期 2026-02-23</code>`));
   frag.appendChild(cheat);
+
+  // 管理员:数据备份下载
+  if (window.ME?.isAdmin) {
+    const bk = el('div', 'card');
+    const row = el('div', 'toolbar');
+    row.appendChild(el('span', 'live', '💾 数据备份:云端每日 03:00 自动备份,也可随时手动下载'));
+    const a = el('a', 'mini-btn', '下载备份');
+    a.href = `${BASE}/api/backup?token=${encodeURIComponent(AUTH)}`;
+    row.appendChild(a);
+    bk.appendChild(row);
+    frag.appendChild(bk);
+  }
 
   box.appendChild(frag);
 }
