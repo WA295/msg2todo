@@ -1133,9 +1133,11 @@ async function loadHome() {
 /** 按角色隐藏管理员专属内容 + 显示当前身份 */
 function applyRole() {
   const admin = window.ME?.isAdmin;
-  document.querySelectorAll('.vtab[data-v="todo"]').forEach((b) => (b.style.display = admin ? '' : 'none'));
+  // 待办对所有用户开放(App 内手动添加,QQ 掉线时兜底)
   const on = document.querySelector('.vtab.on');
-  if (!admin && on?.dataset.v === 'todo') document.querySelector('.vtab[data-v="home"]').click();
+  if (on?.dataset.v === 'todo' && $('#todoView').style.display === 'none') {
+    document.querySelector('.vtab[data-v="home"]').click();
+  }
   // 身份显示 + 退出按钮
   const hasToken = Boolean(localStorage.getItem('token'));
   $('#logoutBtn').style.display = hasToken ? '' : 'none';
@@ -1200,7 +1202,7 @@ function renderHome(d) {
     g.style.cssText = 'background:var(--accent-soft);border-color:var(--accent)';
     g.appendChild(el('div', 'h2', '🎓 三步开始使用'));
     const steps = el('div', 'cheat');
-    steps.innerHTML = '1️⃣ 加 QQ 机器人好友 <b>2127511079</b>,把快递通知/待办消息发给它<br>2️⃣ 到「📚 课表」页上传你的课表文件,开启每晚提醒<br>3️⃣ 点上方「🔔 开启推送」,提醒直达手机锁屏';
+    steps.innerHTML = '1️⃣ 到「📝 待办」页可直接手动添加待办(发消息给 QQ 机器人 2127511079 也能自动提取)<br>2️⃣ 到「📚 课表」页上传你的课表文件,开启每晚提醒<br>3️⃣ 点上方「🔔 开启推送」,提醒直达手机锁屏';
     g.appendChild(steps);
     const ok = el('button', 'btn', '知道了');
     ok.style.marginTop = '8px';
@@ -1295,7 +1297,7 @@ function renderHome(d) {
   fcard.appendChild(el('div', 'h2', '🧭 功能入口'));
   const grid = el('div', 'feat-grid');
   const feats = [
-    { icon: '📝', name: '待办', desc: '聊天消息自动提取 / 手动添加', cmd: '发消息即可', v: 'todo', adminOnly: true },
+    { icon: '📝', name: '待办', desc: 'QQ 消息自动提取 / 手动添加', cmd: '发消息或手动加', v: 'todo' },
     { icon: '📚', name: '课表', desc: '发文本或 xlsx 文件导入,每晚提醒', cmd: '点击上传文件', v: 'sched' },
     { icon: '🍅', name: '番茄钟', desc: '专注计时,到点提醒', cmd: '点击开始专注', ctrl: ['pomo', '🍅 番茄钟'] },
     { icon: '🌤', name: '天气', desc: '每日天气+带伞提示', cmd: '点击设置城市', ctrl: ['weather', '🌤 天气'] },
