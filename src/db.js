@@ -51,9 +51,16 @@ CREATE TABLE IF NOT EXISTS schedule_users (
   name           TEXT DEFAULT '',
   semester_start TEXT,                 -- 'YYYY-MM-DD' 开学第一周
   notify_time    TEXT,                 -- 'HH:MM' 个人提醒时间,空=用全局
+  schedule_times TEXT DEFAULT '',      -- JSON 数组,课表提醒多个时段
+  countdown_time TEXT DEFAULT '',      -- 'HH:MM' 个人倒计时推送时间,空=用全局
   push_kind      TEXT DEFAULT '',      -- '' | 'bark' | 'pushdeer'
   push_key       TEXT DEFAULT '',
-  last_remind    TEXT,                 -- 'YYYY-MM-DD' 已提醒过的"明天"日期(去重)
+  last_remind    TEXT,                 -- 'YYYY-MM-DD HH:MM' 已提醒的时段(去重)
+  last_countdown_remind TEXT,
+  class_remind   INTEGER DEFAULT 1,
+  sleep_time     TEXT DEFAULT '',
+  last_sleep_remind TEXT,
+  web_token      TEXT DEFAULT '',
   updated_at     TEXT
 );
 CREATE TABLE IF NOT EXISTS pomodoro (
@@ -79,8 +86,9 @@ CREATE TABLE IF NOT EXISTS weather_users (
   owner              TEXT PRIMARY KEY,  -- 'qq:<user_id>'
   city               TEXT DEFAULT '',   -- 城市名,空=用全局 WEATHER_CITY
   notify_time        TEXT,              -- 'HH:MM' 个人推送时间,空=用全局
+  times              TEXT DEFAULT '',   -- JSON 数组,天气推送多个时段
   enabled            INTEGER DEFAULT 1, -- 0 = 已关闭天气推送
-  last_weather_remind TEXT,             -- 'YYYY-MM-DD' 去重
+  last_weather_remind TEXT,             -- 'YYYY-MM-DD HH:MM' 去重
   updated_at         TEXT
 );
 CREATE TABLE IF NOT EXISTS countdowns (
@@ -181,6 +189,18 @@ if (!suCols.includes('last_countdown_remind')) {
 if (!suCols.includes('web_token')) {
   db.exec('ALTER TABLE schedule_users ADD COLUMN web_token TEXT DEFAULT \'\'');
 }
+if (!suCols.includes('schedule_times')) {
+  db.exec('ALTER TABLE schedule_users ADD COLUMN schedule_times TEXT DEFAULT \'\'');
+}
+if (!suCols.includes('countdown_time')) {
+  db.exec('ALTER TABLE schedule_users ADD COLUMN countdown_time TEXT DEFAULT \'\'');
+}
+
+// 迁移:weather_users 多时段
+const wuCols = db.prepare('PRAGMA table_info(weather_users)').all().map((c) => c.name);
+if (!wuCols.includes('times')) {
+  db.exec('ALTER TABLE weather_users ADD COLUMN times TEXT DEFAULT \'\'');
+}
 
 // 迁移:schedule_items 上课前提醒去重
 const siCols = db.prepare('PRAGMA table_info(schedule_items)').all().map((c) => c.name);
@@ -269,13 +289,15 @@ export function upsertScheduleUser(owner, fields) {
   const cur = getScheduleUser(owner);
   if (!cur) {
     db.prepare(`
-      INSERT INTO schedule_users (owner, name, semester_start, notify_time, push_kind, push_key, class_remind, sleep_time, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO schedule_users (owner, name, semester_start, notify_time, schedule_times, countdown_time, push_kind, push_key, class_remind, sleep_time, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       owner,
       fields.name || '',
       fields.semesterStart ?? '',
       fields.notifyTime ?? '',
+      fields.scheduleTimes ?? '',
+      fields.countdownTime ?? '',
       fields.pushKind ?? '',
       fields.pushKey ?? '',
       fields.classRemind ?? 1,
@@ -288,6 +310,8 @@ export function upsertScheduleUser(owner, fields) {
         name = COALESCE(?, name),
         semester_start = COALESCE(?, semester_start),
         notify_time = COALESCE(?, notify_time),
+        schedule_times = COALESCE(?, schedule_times),
+        countdown_time = COALESCE(?, countdown_time),
         push_kind = COALESCE(?, push_kind),
         push_key = COALESCE(?, push_key),
         class_remind = COALESCE(?, class_remind),
@@ -298,6 +322,8 @@ export function upsertScheduleUser(owner, fields) {
       fields.name ?? null,
       fields.semesterStart ?? null,
       fields.notifyTime ?? null,
+      fields.scheduleTimes ?? null,
+      fields.countdownTime ?? null,
       fields.pushKind ?? null,
       fields.pushKey ?? null,
       fields.classRemind ?? null,

@@ -146,17 +146,31 @@ async function check() {
     if (w && !w.enabled) continue;
     const city = w?.city || config.weather.city;
     if (!city) continue;
-    const [h, m] = (w?.notify_time || config.weather.notifyTime).split(':').map(Number);
-    if (curMin < h * 60 + m) continue;
-    if (w?.last_weather_remind === today) continue;
-    try {
-      const data = await getWeather(city);
-      const text = formatWeather(data, { dateParts: nowP });
-      notify(u.owner, text);
-      setWeatherReminded(u.owner, today);
-      console.log(`[天气] 已推送 ${city} 天气给「${u.owner}」`);
-    } catch (e) {
-      console.warn(`[天气] 获取 ${city} 失败:`, e.message);
+    // 多时段
+    let slots = [];
+    try { slots = JSON.parse(w?.times || '[]'); } catch {}
+    if (!Array.isArray(slots) || !slots.length) slots = [w?.notify_time || config.weather.notifyTime];
+    slots = slots.filter((s) => /^\d{1,2}:\d{2}$/.test(s)).sort();
+
+    let lastSlot = '';
+    if (w?.last_weather_remind && w.last_weather_remind.startsWith(today)) {
+      lastSlot = w.last_weather_remind.length >= 16 ? w.last_weather_remind.slice(11, 16) : '99:99';
+    }
+
+    for (const slot of slots) {
+      if (slot <= lastSlot) continue;
+      const [sh, sm] = slot.split(':').map(Number);
+      if (curMin < sh * 60 + sm) continue;
+      try {
+        const data = await getWeather(city);
+        const text = formatWeather(data, { dateParts: nowP });
+        notify(u.owner, text);
+        setWeatherReminded(u.owner, `${today} ${slot}`);
+        lastSlot = slot;
+        console.log(`[天气] 已推送 ${city} 天气给「${u.owner}」(${slot})`);
+      } catch (e) {
+        console.warn(`[天气] 获取 ${city} 失败:`, e.message);
+      }
     }
   }
 }
