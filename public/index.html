@@ -701,7 +701,7 @@ async function openCtrl(id, title) {
       body.appendChild(el('div', 'h2', `📦 待取 ${pending.length} 件`));
       for (const p of pending) {
         const r = el('div', 'cd-item');
-        r.appendChild(el('span', null, `${p.location ? `${p.location} · ` : ''}取件码 ${p.code}`));
+        r.appendChild(el('span', null, `${p.company ? `${p.company} · ` : ''}${p.location ? `${p.location} · ` : ''}取件码 ${p.code}`));
         const doneBtn = el('button', 'mini-btn', '✓ 已取');
         doneBtn.onclick = async () => { await fetch(`/api/packages/${p.id}/done`, { method: 'POST' }); openCtrl('pkg', '📦 快递'); };
         const delBtn = el('button', 'del', '✕');

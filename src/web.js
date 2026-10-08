@@ -311,8 +311,9 @@ export function startWeb() {
     const owner = req.user.isAdmin ? 'qq:1487138742' : req.user.owner;
     const code = String(req.body?.code || '').trim().slice(0, 30);
     const location = String(req.body?.location || '').trim().slice(0, 30);
+    const company = String(req.body?.company || '').trim().slice(0, 20);
     if (!code) return res.status(400).json({ error: '取件码不能为空' });
-    const id = addPackage(owner, code, location);
+    const id = addPackage(owner, code, location, company);
     res.json({ ok: true, id });
   });
 

@@ -132,8 +132,7 @@ export async function extractScheduleWithLLM(text) {
   }
 }
 
-function normalizeScheduleItem(it) {
-  const day = Number(it.day);
+function normalizeScheduleItem(it) {  const day = Number(it.day);
   const s = String(it.start || '').match(/^(\d{1,2}):(\d{2})$/);
   const e = String(it.end || '').match(/^(\d{1,2}):(\d{2})$/);
   const name = String(it.name || '').trim();
@@ -153,4 +152,46 @@ function normalizeScheduleItem(it) {
     weekEnd: we > 0 ? we : null,
     parity: ['odd', 'even'].includes(it.parity) ? it.parity : '',
   };
+}
+
+const COURIER_SYSTEM_PROMPT = `你是一个快递通知解析助手。用户发来一条快递到货通知(短信/平台消息),请提取:
+1. code:取件码/提货码/取件号(如 8-1234、A12-3、6位数字),没有则为空字符串
+2. location:驿站/柜子/代收点(如 丰巢、菜鸟驿站、兔喜、妈妈驿站),没有则空字符串
+3. company:快递公司或平台(京东/顺丰/中通/圆通/申通/韵达/极兔/邮政/百世/德邦/菜鸟/淘宝/拼多多等),没有则空字符串
+
+只输出一个 JSON 对象:{"code":"","location":"","company":""}`;
+
+/** LLM 解析快递通知(规则失败时兜底) */
+export async function extractCourierWithLLM(text) {
+  const url = `${config.llm.baseUrl}/chat/completions`;
+  const body = {
+    model: config.llm.model,
+    temperature: 0,
+    response_format: { type: 'json_object' },
+    messages: [
+      { role: 'system', content: COURIER_SYSTEM_PROMPT },
+      { role: 'user', content: `快递通知:\n${text}` },
+    ],
+  };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), config.llm.timeoutMs);
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.llm.apiKey}` },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    if (!res.ok) throw new Error(`LLM HTTP ${res.status}`);
+    const data = await res.json();
+    const content = data?.choices?.[0]?.message?.content ?? '';
+    const obj = parseJSONLoose(content);
+    return {
+      code: String(obj.code || '').trim().slice(0, 30),
+      location: String(obj.location || '').trim().slice(0, 30),
+      company: String(obj.company || '').trim().slice(0, 20),
+    };
+  } finally {
+    clearTimeout(timer);
+  }
 }
