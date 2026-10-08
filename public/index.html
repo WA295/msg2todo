@@ -598,6 +598,71 @@ function toast(msg) {
 window.addEventListener('error', (e) => { try { toast('⚠️ ' + (e.message || '出错了')); } catch {} });
 window.addEventListener('unhandledrejection', (e) => { const r = e.reason; try { toast('⚠️ ' + ((r && r.message) || r || '出错了')); } catch {} });
 
+/* ================= App 本地弹窗(安卓 App 内原生通知) ================= */
+function nativeNotify() {
+  try { return (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications) || null; } catch { return null; }
+}
+
+async function appNotifyStatus() {
+  const LN = nativeNotify();
+  if (!LN) return { supported: false, granted: false };
+  try {
+    const p = await LN.checkPermissions();
+    return { supported: true, granted: Boolean(p && p.display === 'granted') };
+  } catch {
+    return { supported: true, granted: false };
+  }
+}
+
+async function enableAppNotify() {
+  const LN = nativeNotify();
+  if (!LN) return { ok: false, error: '需要在本机 App 内操作(网页版请用「开启推送」)' };
+  try {
+    const p = await LN.requestPermissions();
+    if (!p || p.display !== 'granted') return { ok: false, error: '未获得通知权限,请在系统设置里允许' };
+    await LN.schedule({ notifications: [{ id: 1, title: '✅ 弹窗提醒已开启', body: '待办到期前 1 小时会像这样弹窗提醒你', schedule: { at: new Date(Date.now() + 1500) } }] });
+    scheduleTodoPops();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+async function fireTestPop() {
+  const LN = nativeNotify();
+  if (!LN) { toast('❌ 仅支持在 App 内使用'); return; }
+  try {
+    await LN.schedule({ notifications: [{ id: 2, title: '🔔 测试弹窗', body: '这就是手机弹窗通知!', schedule: { at: new Date(Date.now() + 1000) } }] });
+    toast('✅ 已发送测试弹窗');
+  } catch (e) { toast('❌ 失败:' + e.message); }
+}
+
+/** 把 24 小时内到期(且未完成)的待办排成本地弹窗,每 30 秒同步一次 */
+async function scheduleTodoPops() {
+  const LN = nativeNotify();
+  if (!LN) return;
+  try {
+    const p = await LN.checkPermissions();
+    if (!p || p.display !== 'granted') return;
+    const data = await fetch('/api/todos?status=open').then((r) => r.json()).catch(() => null);
+    if (!data || !Array.isArray(data.todos)) return;
+    const now = Date.now();
+    const notifs = [];
+    let i = 1000;
+    for (const t of data.todos) {
+      if (!t.due_at) continue;
+      const due = new Date(t.due_at).getTime();
+      const at = due - 60 * 60 * 1000; // 到期前 1 小时弹窗
+      if (at > now && at < now + 24 * 3600 * 1000) {
+        notifs.push({ id: ++i, title: '⏰ 待办即将到期', body: `${t.title}(到期 ${String(t.due_at).slice(11, 16)})`, schedule: { at: new Date(at) } });
+      }
+    }
+    const ids = notifs.map((n) => ({ id: n.id }));
+    try { await LN.cancel({ notifications: ids }); } catch {}
+    if (notifs.length) await LN.schedule({ notifications: notifs });
+  } catch {}
+}
+
 function render(todos) {
   const list = $('#list');
   list.innerHTML = '';
@@ -754,7 +819,8 @@ $('#wxBtn').onclick = () => {
 };
 
 connectSSE();
-setInterval(() => { load(); loadHome(); }, 30000);
+setInterval(() => { load(); loadHome(); scheduleTodoPops(); }, 30000);
+scheduleTodoPops();
 refreshChatUnread();
 fetch('/api/status').then((r) => r.json()).then(renderStatus);
 load();
@@ -987,6 +1053,24 @@ async function openCtrl(id, title, ctx) {
     }
     sub.textContent = 'iOS 用 Bark(免费);安卓用 PushDeer(免费)。绑定后提醒同时推到手机锁屏。';
     body.appendChild(sub);
+  } else if (id === 'appnotify') {
+    appNotifyStatus().then((st) => {
+      if (!st.supported) {
+        body.appendChild(el('div', 'sub', '本功能仅支持在安卓 App 内使用;网页版请用「📲 原生推送(Web Push)」。'));
+        return;
+      }
+      body.appendChild(el('div', 'sub', st.granted
+        ? '✅ 弹窗提醒已开启:待办到期前 1 小时会弹窗提醒(需保持 App 在后台运行)。'
+        : '开启后,待办到期前 1 小时会弹窗提醒到通知栏。'));
+      if (!st.granted) {
+        body.appendChild(mkBtn('🔔 开启弹窗提醒', async () => {
+          const r = await enableAppNotify();
+          toast(r.ok ? '✅ 已开启' : '❌ ' + (r.error || '开启失败'));
+          if (r.ok) openCtrl('appnotify', '🔔 弹窗提醒');
+        }));
+      }
+      body.appendChild(mkBtn('📲 发送测试弹窗', async () => { await fireTestPop(); }, 'mini-btn'));
+    });
   } else if (id === 'pkg') {
     const data = await fetch('/api/packages').then((r) => r.json()).catch(() => ({ packages: [] }));
     const pending = (data.packages || []).filter((p) => p.status === 'pending');
@@ -1777,6 +1861,11 @@ function renderSettings(s) {
   getPushState().then((st) => {
     push.appendChild(srow('📲', '原生推送(Web Push)', st.state === 'on' ? '已开启 ✓' : st.state === 'denied' ? '权限被拒' : st.state === 'unsupported' ? '设备不支持' : '未开启', () => { if (st.state === 'on') disablePush(); else if (st.state !== 'denied' && st.state !== 'unsupported') enablePush(); }));
     push.appendChild(srow('📱', '手机推送(Bark/PushDeer)', s.push.kind ? `${s.push.kind === 'bark' ? 'Bark' : 'PushDeer'} 已绑定` : '未绑定', () => openCtrl('pushbind', '🔔 手机推送')));
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.LocalNotifications) {
+      appNotifyStatus().then((st2) => {
+        push.appendChild(srow('🔔', '弹窗提醒(本机)', st2.granted ? '已开启 ✓' : '未开启', () => openCtrl('appnotify', '🔔 弹窗提醒')));
+      });
+    }
     frag.appendChild(push);
   });
 
