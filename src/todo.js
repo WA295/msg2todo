@@ -1,5 +1,5 @@
 import { config } from './config.js';
-import { addTodo, addMessage } from './db.js';
+import { addTodo, addMessage, upsertScheduleUser } from './db.js';
 import { extractTodoWithLLM } from './llm.js';
 import { extractTodoWithRules } from './rules.js';
 import { formatDue } from './time.js';
@@ -42,6 +42,20 @@ export async function handleIncoming(msg) {
     if (await handleExcelImport(msg)) return null;
   }
   if (!text) return null;
+
+  // 设置昵称指令(「昵称 小明」,仅私聊/个人模式生效)
+  const nickM = text.match(/^(?:设置昵称|昵称)\s*[:：]?\s*(.+)$/);
+  if (nickM && !msg.isGroup) {
+    const name = String(nickM[1]).trim().slice(0, 20);
+    if (name) {
+      const owner = `${msg.platform}:${msg.chatId}`;
+      if (/^qq:\d{5,15}$/.test(owner)) {
+        upsertScheduleUser(owner, { name });
+        if (typeof msg.reply === 'function') { try { await msg.reply(`✅ 昵称已改为「${name}」`); } catch {} }
+        return null;
+      }
+    }
+  }
 
   // 课表指令优先处理(「课表/我的课表/明天什么课」等),不进入待办管线
   if (await handleScheduleCommand(msg)) return null;

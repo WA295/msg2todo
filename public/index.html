@@ -1227,6 +1227,20 @@ Windows 推荐 <b>LLOneBot</b>(QQNT 插件):设置 → 反向 WebSocket 填上�
     body.appendChild(mkBtn('💾 保存', async () => { if (await post('/api/group-whitelist', { groups: i.value })) openCtrl('grouplist', '🏘️ QQ 群白名单'); }));
     body.appendChild(mkBtn('🗑 清空', async () => { if (await post('/api/group-whitelist', { groups: [] })) openCtrl('grouplist', '🏘️ QQ 群白名单'); }, 'mini-btn'));
     if (wl.length) body.appendChild(el('div', 'sub', `当前:${wl.join('、')}`));
+  } else if (id === 'nickname') {
+    const nI = mkInput('你的昵称(1~20 个字)', window.ME?.isAdmin ? '管理员' : (window.ME?.name || ''));
+    body.appendChild(row('昵称', nI));
+    body.appendChild(el('div', 'sub', '昵称会显示在好友列表、聊天和留言板里。'));
+    body.appendChild(mkBtn('💾 保存', async () => {
+      const v = nI.value.trim();
+      if (!v) { toast('❌ 昵称不能为空'); return; }
+      if (v.length > 20) { toast('❌ 最多 20 个字'); return; }
+      if (await post('/api/profile/nickname', { name: v }, '✅ 昵称已保存')) {
+        try { const me = JSON.parse(localStorage.getItem('me') || '{}'); me.name = v; localStorage.setItem('me', JSON.stringify(me)); } catch {}
+        loadSettings();
+        openCtrl('nickname', '✏️ 设置昵称');
+      }
+    }));
   } else if (id === 'bg') {
     const PRESETS = [
       { name: '默认灰白', css: '' },      { name: 'iTodo 蓝', css: 'linear-gradient(135deg, #53c0ff, #007aff)' },
@@ -1851,6 +1865,7 @@ function renderSettings(s) {
   const acc = scard('👤 账号');
   const meName = window.ME?.isAdmin ? '管理员' : (window.ME?.name || '同学');
   acc.appendChild(srow('🆔', '当前身份', meName, null));
+  acc.appendChild(srow('✏️', '昵称', meName, () => openCtrl('nickname', '✏️ 设置昵称')));
   if (window.ME?.isAdmin) {
     acc.appendChild(srow('🛡️', '管理员权限', '已开启', null));
   } else {
