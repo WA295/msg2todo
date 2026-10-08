@@ -472,14 +472,13 @@ export function startWeb() {
     const content = String(req.body?.content || '').trim().slice(0, 500);
     if (!title || !content) return res.status(400).json({ error: '标题和内容必填' });
     addAnnouncement(title, content);
-    // 广播给所有学生:QQ + Web Push + 已绑定的手机推送
+    // 只在软件内展示 + 手机弹窗(Web Push / Bark / PushDeer);不再发 QQ 私聊
     for (const u of listScheduleUsers()) {
-      if (u.owner.startsWith('qq:')) sendQQPrivate(u.owner.slice(3), `📢 公告:${title}\n\n${content}`);
       sendWebPush(u.owner, `📢 ${title}`, content);
       if (u.push_kind === 'bark') sendBark(`📢 ${title}`, content, u.push_key);
       else if (u.push_kind === 'pushdeer') sendPushDeer(`📢 ${title}`, content, u.push_key);
     }
-    console.log(`[公告] 「${title}」已广播给 ${listScheduleUsers().length} 人`);
+    console.log(`[公告] 「${title}」已发布(软件内展示,不发 QQ)`);
     res.json({ ok: true });
   });
 
