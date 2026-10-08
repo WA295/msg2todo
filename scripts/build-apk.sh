@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# 打包安卓 APK(debug 版,可直接安装)
+# 打包安卓 APK(release 正式签名版,可覆盖升级、风险提示更少)
 # 依赖:Java 17+、Android SDK(默认 ~/android-sdk,可用 ANDROID_HOME 覆盖)
+# 签名:读取 android/keystore.properties + android/itodo-release.jks(勿提交到 Git)
 set -e
 cd "$(dirname "$0")/.."
 
@@ -27,10 +28,14 @@ if [ -n "$SERVER" ] || [ -n "$TOKEN" ]; then
 fi
 
 npx cap sync android
-cd android
-./gradlew assembleDebug
 
-APK="app/build/outputs/apk/debug/app-debug.apk"
+# 关键:删除被同步进 WebView 资源的 .apk,避免"APK 套娃 APK"导致体积暴涨、被安全扫描误判
+find android/app/src/main/assets/public -type f -name '*.apk' -delete 2>/dev/null || true
+
+cd android
+./gradlew assembleRelease
+
+APK="app/build/outputs/apk/release/app-release.apk"
 if [ -f "$APK" ]; then
   mkdir -p ../dist
   cp "$APK" ../dist/msg2todo-安卓.apk

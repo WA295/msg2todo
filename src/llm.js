@@ -154,6 +154,49 @@ function normalizeScheduleItem(it) {  const day = Number(it.day);
   };
 }
 
+/** 视觉模型解析课表图片(base64)→ 结构化课程数组 */
+export async function extractScheduleFromImage(base64, mimeType = 'image/jpeg') {
+  if (!config.llm.enabled) {
+    throw new Error('图片识别需要配置支持看图的模型:请在 .env 设置 LLM_API_KEY 与 LLM_VISION_MODEL(如 qwen-vl-max / glm-4v / gpt-4o)');
+  }
+  const url = `${config.llm.baseUrl}/chat/completions`;
+  const body = {
+    model: config.llm.visionModel,
+    temperature: 0,
+    messages: [
+      { role: 'system', content: SCHEDULE_SYSTEM_PROMPT },
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: '这是学生课表的图片(教务系统截图或拍照)。请识别其中所有课程并输出 JSON。星期通常在表头(周一~周日),节次/时间通常在左侧一列或每个格子里。看不清的字段留空,不要臆造。' },
+          { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64}` } },
+        ],
+      },
+    ],
+  };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), config.llm.timeoutMs);
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${config.llm.apiKey}` },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '');
+      throw new Error(`视觉模型 HTTP ${res.status}: ${detail.slice(0, 200)}`);
+    }
+    const data = await res.json();
+    const content = data?.choices?.[0]?.message?.content ?? '';
+    if (!content) throw new Error('视觉模型返回为空');
+    const obj = parseJSONLoose(content);
+    return (Array.isArray(obj.items) ? obj.items : []).map(normalizeScheduleItem).filter(Boolean);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 const COURIER_SYSTEM_PROMPT = `你是一个快递通知解析助手。用户发来一条快递到货通知(短信/平台消息),请提取:
 1. code:取件码/提货码/取件号(如 8-1234、A12-3、6位数字),没有则为空字符串
 2. location:驿站/柜子/代收点(如 丰巢、菜鸟驿站、兔喜、妈妈驿站),没有则空字符串

@@ -51,6 +51,7 @@
     "files": [
       "src/**/*",
       "public/**/*",
+      "!public/*.apk",
       "desktop/**/*",
       "build/**/*",
       "package.json",

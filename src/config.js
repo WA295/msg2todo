@@ -22,6 +22,8 @@ export const config = {
     baseUrl: (process.env.LLM_BASE_URL || 'https://api.deepseek.com').replace(/\/+$/, ''),
     apiKey: realApiKey,
     model: process.env.LLM_MODEL || 'deepseek-chat',
+    // 识别课表图片用的视觉模型(需支持图片输入;留空则用上面的 model)
+    visionModel: (process.env.LLM_VISION_MODEL || '').trim() || process.env.LLM_MODEL || 'deepseek-chat',
     timeoutMs: Number(process.env.LLM_TIMEOUT_MS || 60000),
     temperature: Number(process.env.LLM_TEMPERATURE || 0.1),
   },
