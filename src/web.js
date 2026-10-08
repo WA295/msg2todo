@@ -469,7 +469,7 @@ export function startWeb() {
   app.post('/api/announcements', express.json(), (req, res) => {
     if (!req.user.isAdmin) return res.status(403).json({ error: '仅管理员可发公告' });
     const title = String(req.body?.title || '').trim().slice(0, 40);
-    const content = String(req.body?.content || '').trim().slice(0, 500);
+    const content = String(req.body?.content || '').trim().slice(0, 2000);
     if (!title || !content) return res.status(400).json({ error: '标题和内容必填' });
     addAnnouncement(title, content);
     // 只在软件内展示 + 手机弹窗(Web Push / Bark / PushDeer);不再发 QQ 私聊
