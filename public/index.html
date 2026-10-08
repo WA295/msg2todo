@@ -659,6 +659,7 @@ load();
 // 注册推送 Service Worker
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 loadHome();
+loadBackground();
 
 // Hero 日期
 (function setHeroDate() {
@@ -1009,29 +1010,110 @@ async function openCtrl(id, title, ctx) {
       await post('/api/reminder/times', { type, times });
       openCtrl('times', '⏰ 提醒时段', ctx);
     }));
-  } else if (id === 'joke') {
-    const data = await fetch('/api/jokes').then((r) => r.json()).catch(() => ({ jokes: [] }));
-    body.appendChild(el('div', 'sub', `今日:${data.today || '暂无'} · 共 ${data.jokes.length} 条(按日期轮换,全体同一条)`));
-    for (const jk of data.jokes) {
-      const r = el('div', 'cd-item');
-      r.appendChild(el('span', null, jk.content));
-      const del = el('button', 'del', '✕');
-      del.onclick = async () => {
-        if (!confirm('删除这条?')) return;
-        await fetch(`/api/jokes/${jk.id}`, { method: 'DELETE' });
-        openCtrl('joke', '💡 每日一句');
+  } else if (id === 'bg') {
+    const PRESETS = [
+      { name: '默认灰白', css: '' },
+      { name: 'iTodo 蓝', css: 'linear-gradient(135deg, #53c0ff, #007aff)' },
+      { name: '紫罗兰', css: 'linear-gradient(135deg, #c084fc, #7c3aed)' },
+      { name: '薄荷', css: 'linear-gradient(135deg, #6ee7b7, #059669)' },
+      { name: '日落', css: 'linear-gradient(135deg, #fdba74, #f43f5e)' },
+      { name: '樱花', css: 'linear-gradient(135deg, #f9a8d4, #ec4899)' },
+      { name: '星空', css: 'linear-gradient(160deg, #0f172a, #312e81)' },
+      { name: '纯黑', css: '#000000' },
+    ];
+    const grid = el('div', 'feat-grid');
+    for (const p of PRESETS) {
+      const sw = vcard('feat', el('div', 'icon', p.css ? '🎨' : '↩️'), el('div', 'name', p.name), el('div', 'desc', p.css ? '点击应用' : '恢复默认'));
+      sw.style.background = p.css || 'var(--fill)';
+      sw.onclick = async () => {
+        await post('/api/background', { background: p.css });
+        applyBackground(p.css);
+        openCtrl('bg', '🎨 背景');
       };
-      r.appendChild(del);
-      body.appendChild(r);
+      grid.appendChild(sw);
     }
-    const cI = mkInput('新冷笑话/热梗(200字内)', '');
-    body.appendChild(row('新增', cI));
-    body.appendChild(mkBtn('➕ 添加', async () => {
-      if (!cI.value.trim()) { alert('内容不能为空'); return; }
-      await post('/api/jokes', { content: cI.value.trim() });
-      openCtrl('joke', '💡 每日一句');
-    }));
+    body.appendChild(grid);
+    body.appendChild(el('div', 'sub', '自定义渐变(选两个颜色)'));
+    const c1 = el('input'); c1.type = 'color'; c1.value = '#53c0ff';
+    const c2 = el('input'); c2.type = 'color'; c2.value = '#007aff';
+    const cust = el('div', 'toolbar');
+    cust.appendChild(c1);
+    cust.appendChild(c2);
+    body.appendChild(cust);
+    body.appendChild(mkBtn('应用自定义渐变', async () => {
+      const css = `linear-gradient(135deg, ${c1.value}, ${c2.value})`;
+      await post('/api/background', { background: css });
+      applyBackground(css);
+      openCtrl('bg', '🎨 背景');
+    }, 'mini-btn'));
+    const fI = el('input'); fI.type = 'file'; fI.accept = 'image/*'; fI.style.display = 'none';
+    body.appendChild(mkBtn('🖼 上传图片做背景', () => fI.click(), 'mini-btn'));
+    fI.onchange = async () => {
+      const f = fI.files[0];
+      if (!f) return;
+      try {
+        const dataUrl = await compressImage(f);
+        await post('/api/background', { background: `url(${dataUrl})` });
+        applyBackground(`url(${dataUrl})`);
+        openCtrl('bg', '🎨 背景');
+      } catch (e) {
+        alert('图片处理失败:' + e.message);
+      }
+    };
   }
+}
+
+/* 应用背景 */
+function applyBackground(bg) {
+  const bodyEl = document.body;
+  if (!bg) {
+    bodyEl.style.background = '';
+    bodyEl.style.backgroundAttachment = '';
+    bodyEl.style.backgroundSize = '';
+    return;
+  }
+  bodyEl.style.background = bg;
+  if (bg.startsWith('url(')) {
+    bodyEl.style.backgroundAttachment = 'fixed';
+    bodyEl.style.backgroundSize = 'cover';
+    bodyEl.style.backgroundPosition = 'center';
+  } else {
+    bodyEl.style.backgroundAttachment = 'fixed';
+    bodyEl.style.backgroundSize = '';
+  }
+}
+
+/* 图片压缩(长边 1080,JPEG 0.72) */
+function compressImage(file, maxW = 1080) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      try {
+        const scale = Math.min(1, maxW / img.width);
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const cv = document.createElement('canvas');
+        cv.width = w;
+        cv.height = h;
+        cv.getContext('2d').drawImage(img, 0, 0, w, h);
+        URL.revokeObjectURL(url);
+        resolve(cv.toDataURL('image/jpeg', 0.72));
+      } catch (e) {
+        reject(e);
+      }
+    };
+    img.onerror = () => reject(new Error('图片加载失败'));
+    img.src = url;
+  });
+}
+
+/* 启动时加载背景 */
+async function loadBackground() {
+  try {
+    const s = await fetch('/api/settings').then((r) => r.json());
+    applyBackground(s.background || '');
+  } catch {}
 }
 
 async function loadHome() {
@@ -1125,21 +1207,6 @@ function renderHome(d) {
     ok.onclick = () => { localStorage.setItem('guideDone', '1'); loadHome(); };
     g.appendChild(ok);
     frag.appendChild(g);
-  }
-
-  // 每日一句卡片
-  if (d.joke) {
-    const jcard = el('div', 'card');
-    jcard.style.cssText = 'background:var(--accent-soft)';
-    jcard.appendChild(el('div', 'h2', '💡 每日一句'));
-    jcard.appendChild(el('div', 'cheat', d.joke));
-    if (window.ME?.isAdmin) {
-      const mgr = el('button', 'mini-btn', '管理笑话库');
-      mgr.style.marginTop = '8px';
-      mgr.onclick = () => openCtrl('joke', '💡 每日一句');
-      jcard.appendChild(mgr);
-    }
-    frag.appendChild(jcard);
   }
 
   // 天气(按实际天气动态换背景)
@@ -1552,6 +1619,11 @@ function renderSettings(s) {
   row.appendChild(saveBtn);
   srv.appendChild(row);
   frag.appendChild(srv);
+
+  // 个性化:背景板
+  const ui = scard('🎨 个性化');
+  ui.appendChild(srow('🖼', '自定义背景', '渐变 / 颜色 / 图片', () => openCtrl('bg', '🎨 背景')));
+  frag.appendChild(ui);
 
   // 管理员:备份
   if (window.ME?.isAdmin) {

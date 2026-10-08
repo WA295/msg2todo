@@ -17,7 +17,7 @@ import { parseWorkbook } from './excelImport.js';
 import { events, liveStatus } from './events.js';
 import { addPushSubscription, listPushSubscriptions, deletePushSubscription, listResources, addResource, deleteResource,
   addPackage, listPackages, markPackageDone, deletePackage, addPost, listPosts, deletePost,
-  addAnnouncement, listAnnouncements, deleteAnnouncement, jokeOfDay, listJokes, addJoke, deleteJoke } from './db.js';
+  addAnnouncement, listAnnouncements, deleteAnnouncement } from './db.js';
 import { pushCountdownNow } from './countdown.js';
 import { sendWebPush } from './push.js';
 import { sendQQPrivate } from './onebot.js';
@@ -410,25 +410,6 @@ export function startWeb() {
     res.json({ ok: true });
   });
 
-  // ── 每日一句 ──
-  app.get('/api/jokes', (req, res) => {
-    res.json({ today: jokeOfDay(), jokes: listJokes() });
-  });
-
-  app.post('/api/jokes', express.json(), (req, res) => {
-    if (!req.user.isAdmin) return res.status(403).json({ error: '仅管理员可添加' });
-    const content = String(req.body?.content || '').trim().slice(0, 200);
-    if (!content) return res.status(400).json({ error: '内容不能为空' });
-    addJoke(content);
-    res.json({ ok: true });
-  });
-
-  app.delete('/api/jokes/:id', (req, res) => {
-    if (!req.user.isAdmin) return res.status(403).json({ error: '仅管理员可删' });
-    if (!deleteJoke(Number(req.params.id))) return res.status(404).json({ error: '不存在' });
-    res.json({ ok: true });
-  });
-
   // ── 数据备份下载(仅管理员)──
   app.get('/api/backup', (req, res) => {
     if (!req.user.isAdmin) return res.status(403).json({ error: '仅管理员可下载' });
@@ -469,6 +450,7 @@ export function startWeb() {
         enabled: wu.enabled !== 0,
       },
       countdown: { time: su.countdown_time || config.countdownNotifyTime },
+      background: su.background || '',
       push: { kind: su.push_kind || '', hasKey: Boolean(su.push_key) },
       countdowns: listCountdowns(owner).map((c) => ({ ...c, id: Number(c.id) })),
       pomodoro: {
@@ -476,6 +458,14 @@ export function startWeb() {
         stats: pomodoroStats(owner),
       },
     });
+  });
+
+  // 背景设置(自定义背景板)
+  app.post('/api/background', express.json(), (req, res) => {
+    const owner = req.user.isAdmin ? 'qq:1487138742' : req.user.owner;
+    const bg = String(req.body?.background ?? '').slice(0, 800 * 1024); // 上限 ~800KB
+    upsertScheduleUser(owner, { background: bg });
+    res.json({ ok: true });
   });
 
   // 提醒时段设置:type = schedule(课表,多时段) | weather(天气,多时段) | countdown(倒计时,单时段)
@@ -572,7 +562,6 @@ export function startWeb() {
       runningPomodoro: running,
       dueTodos: openDue,
       weather: weather ? { text: weather, code: weatherCode } : null,
-      joke: jokeOfDay(),
       announcements: listAnnouncements(5),
       status: { ...liveStatus, llm: config.llm.enabled, bark: Boolean(config.barkUrl), pushdeer: Boolean(config.pushDeerKey) },
       scheduleTimes: {
