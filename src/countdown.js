@@ -3,6 +3,7 @@ import { db, getScheduleUser, addCountdown, listCountdowns, deleteCountdown, set
 import { partsOf, daysUntil, partsToStr } from './time.js';
 import { sendBark, sendPushDeer } from './notify.js';
 import { sendQQPrivate } from './onebot.js';
+import { sendWebPush } from './push.js';
 
 let timer = null;
 
@@ -17,6 +18,7 @@ export function stopCountdownReminder() {
 }
 
 function notify(owner, text, title = '⏳ 倒计时') {
+  sendWebPush(owner, title, text);
   if (owner.startsWith('qq:')) sendQQPrivate(owner.slice(3), text);
   const u = getScheduleUser(owner);
   if (u?.push_kind === 'bark') sendBark(title, text, u.push_key);

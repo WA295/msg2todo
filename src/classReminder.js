@@ -4,6 +4,7 @@ import { partsOf, partsToStr } from './time.js';
 import { buildDayText } from './schedule.js';
 import { sendBark, sendPushDeer } from './notify.js';
 import { sendQQPrivate } from './onebot.js';
+import { sendWebPush } from './push.js';
 
 let timer = null;
 
@@ -19,6 +20,7 @@ export function stopClassReminder() {
 }
 
 function notify(owner, text) {
+  sendWebPush(owner, '🔔 上课提醒', text);
   if (owner.startsWith('qq:')) sendQQPrivate(owner.slice(3), text);
   const u = getScheduleUser(owner);
   if (u?.push_kind === 'bark') sendBark('🔔 上课提醒', text, u.push_key);

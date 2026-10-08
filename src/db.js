@@ -96,6 +96,14 @@ CREATE TABLE IF NOT EXISTS review_log (
   sent_at  TEXT NOT NULL,
   PRIMARY KEY (owner, week)
 );
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  owner      TEXT NOT NULL,             -- 'qq:<user_id>' 或 'admin'
+  endpoint    TEXT NOT NULL UNIQUE,      -- Web Push endpoint
+  keys       TEXT NOT NULL,              -- JSON {p256dh, auth}
+  user_agent TEXT DEFAULT '',
+  created_at TEXT NOT NULL
+);
 `);
 
 // 迁移:todos(notified_at 去重 / notified_adv_at 提前提醒去重 / owner 多用户归属)
@@ -482,4 +490,21 @@ export function getUserByToken(token) {
 
 export function setWebToken(owner, token) {
   db.prepare('UPDATE schedule_users SET web_token = ? WHERE owner = ?').run(token, owner);
+}
+
+/* ================= Web Push 订阅 ================= */
+
+export function addPushSubscription(owner, subscription, userAgent = '') {
+  db.prepare(`
+    INSERT OR REPLACE INTO push_subscriptions (owner, endpoint, keys, user_agent, created_at)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(owner, subscription.endpoint, JSON.stringify(subscription.keys || {}), userAgent, new Date().toISOString());
+}
+
+export function listPushSubscriptions(owner) {
+  return db.prepare('SELECT * FROM push_subscriptions WHERE owner = ?').all(owner);
+}
+
+export function deletePushSubscription(owner, endpoint) {
+  db.prepare('DELETE FROM push_subscriptions WHERE owner = ? AND endpoint = ?').run(owner, endpoint);
 }

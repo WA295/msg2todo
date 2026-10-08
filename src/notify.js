@@ -2,6 +2,7 @@ import { config } from './config.js';
 import { events } from './events.js';
 import { db } from './db.js';
 import { formatDue } from './time.js';
+import { sendWebPush } from './push.js';
 
 const BARK_ROOT = 'https://api.day.app';
 const PUSHDEER_ROOT = 'https://api2.pushdeer.com';
@@ -71,6 +72,7 @@ export function startNotifier() {
   events.on('new-todo', ({ todo }) => {
     const due = formatDue(todo.due_at);
     sendAll('📝 新待办', `${todo.title}${due ? ` · ${due}` : ''}${todo.priority === 'high' ? ' · 🔥高优先级' : ''}`);
+    sendWebPush(todo.owner || 'admin', '📝 新待办', todo.title);
   });
   dueTimer = setInterval(checkReminders, 30000);
 }
@@ -89,12 +91,14 @@ function checkReminders() {
       const remainMin = Math.max(1, Math.round((due - now) / 60000));
       const label = remainMin >= 60 ? `约 ${Math.round(remainMin / 60)} 小时` : `${remainMin} 分钟`;
       sendAll('⏰ 待办即将到期', `${t.title} · ${label}后到期 (${formatDue(t.due_at)})`);
+      sendWebPush(t.owner || 'admin', '⏰ 待办即将到期', `${t.title} · ${label}后到期`);
       db.prepare('UPDATE todos SET notified_adv_at = ? WHERE id = ?').run(new Date().toISOString(), t.id);
     }
 
     // 到期提醒:到期时刻前后 5 分钟内提醒一次
     if (!t.notified_at && due <= now && due > now - 5 * 60 * 1000) {
       sendAll('⏰ 待办已到期', t.title);
+      sendWebPush(t.owner || 'admin', '⏰ 待办已到期', t.title);
       db.prepare('UPDATE todos SET notified_at = ? WHERE id = ?').run(new Date().toISOString(), t.id);
     }
   }

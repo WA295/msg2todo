@@ -484,10 +484,88 @@ connectSSE();
 setInterval(() => { load(); loadHome(); }, 30000);
 fetch('/api/status').then((r) => r.json()).then(renderStatus);
 load();
-
-/* ================= 总览首页 ================= */
+// 注册推送 Service Worker
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+loadHome();
 const VWD = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
 const vfmtMin = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+
+/* ---- Web Push(App 原生推送)---- */
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  return new Uint8Array([...rawData].map((c) => c.charCodeAt(0)));
+}
+
+async function getPushState() {
+  if (!('serviceWorker' in navigator) || !('Notification' in window) || !('PushManager' in window)) return { state: 'unsupported' };
+  const reg = await navigator.serviceWorker.getRegistration().catch(() => null);
+  if (!reg || !reg.pushManager) return { state: 'unsupported' };
+  if (Notification.permission === 'denied') return { state: 'denied' };
+  const sub = await reg.pushManager.getSubscription().catch(() => null);
+  return { state: sub ? 'on' : 'off', sub, reg };
+}
+
+async function enablePush() {
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') { alert('需要在浏览器设置中允许通知,才能收到推送'); return; }
+    const reg = await navigator.serviceWorker.getRegistration() || await navigator.serviceWorker.register('sw.js');
+    const vapid = await fetch('/api/push/vapid').then((r) => r.json());
+    if (!vapid.enabled) { alert('服务端推送未配置'); return; }
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(vapid.publicKey),
+    });
+    const res = await fetch('/api/push/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscription: sub.toJSON() }),
+    });
+    if (!res.ok) throw new Error('订阅保存失败');
+    loadHome();
+  } catch (e) {
+    alert('开启推送失败:' + e.message);
+  }
+}
+
+async function disablePush() {
+  try {
+    const { sub } = await getPushState();
+    if (sub) {
+      await fetch('/api/push/unsubscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ endpoint: sub.endpoint }) });
+      await sub.unsubscribe();
+    }
+    loadHome();
+  } catch (e) {
+    alert('关闭失败:' + e.message);
+  }
+}
+
+async function renderPushCard(frag) {
+  const card = el('div', 'card');
+  card.appendChild(el('div', 'h2', '🔔 消息推送'));
+  const row = el('div', 'toolbar');
+  const st = await getPushState();
+  if (st.state === 'on') {
+    row.appendChild(el('span', 'live on', '✅ 已开启:提醒将直达手机通知中心'));
+    const btn = el('button', 'mini-btn', '关闭推送');
+    btn.onclick = disablePush;
+    row.appendChild(btn);
+  } else if (st.state === 'off') {
+    row.appendChild(el('span', 'live', '未开启:开启后天气/课表/倒计时提醒直达手机(不依赖 QQ)'));
+    const btn = el('button', 'btn', '开启推送');
+    btn.onclick = enablePush;
+    row.appendChild(btn);
+  } else if (st.state === 'denied') {
+    row.appendChild(el('span', 'live', '❌ 通知权限被拒绝,请在浏览器设置中允许本站通知'));
+  } else {
+    row.appendChild(el('span', 'live', '此浏览器不支持 Web Push(iPhone 需 iOS 16.4+ 且从主屏幕打开)'));
+  }
+  card.appendChild(row);
+  frag.appendChild(card);
+}
 
 async function loadHome() {
   try {
@@ -534,6 +612,9 @@ function renderHome(d) {
   box.innerHTML = '';
   const frag = document.createDocumentFragment();
   if (!d) { box.appendChild(el('div', 'card', '加载中…')); return; }
+
+  // 消息推送卡片(异步渲染)
+  renderPushCard(frag);
 
   // 天气
   if (d.weather) {
@@ -657,8 +738,6 @@ document.querySelectorAll('.vtab').forEach((btn) => {
     if (v === 'sched') loadSchedule();
   };
 });
-
-loadHome();
 
 async function loadSchedule() {
   try {

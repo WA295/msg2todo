@@ -102,6 +102,13 @@ export const config = {
   weeklyReviewTime: /^\d{1,2}:\d{2}$/.test(process.env.WEEKLY_REVIEW_TIME || '')
     ? process.env.WEEKLY_REVIEW_TIME
     : '22:00',
+
+  // Web Push(VAPID):App 原生推送
+  vapid: {
+    publicKey: (process.env.VAPID_PUBLIC_KEY || '').trim(),
+    privateKey: (process.env.VAPID_PRIVATE_KEY || '').trim(),
+    subject: (process.env.VAPID_SUBJECT || 'mailto:admin@example.com').trim(),
+  },
 };
 
 /** 当前时间(带星期与 UTC 偏移),用于喂给 LLM 作为参考 */

@@ -1,6 +1,7 @@
 import { db, getScheduleUser, startPomodoro, getRunningPomodoro, stopPomodoro, setPomodoroPhase, finishPomodoro, logPomodoro, pomodoroStats } from './db.js';
 import { sendBark, sendPushDeer } from './notify.js';
 import { sendQQPrivate } from './onebot.js';
+import { sendWebPush } from './push.js';
 
 const DEF_FOCUS = 25;
 const DEF_REST = 5;
@@ -18,8 +19,9 @@ export function stopPomodoroChecker() {
   if (timer) clearInterval(timer);
 }
 
-/** 通知某人:QQ 私聊 + 已绑定的手机推送 */
+/** 通知某人:QQ 私聊 + Web Push + 已绑定的手机推送 */
 function notify(owner, text) {
+  sendWebPush(owner, '🍅 番茄钟', text);
   if (owner.startsWith('qq:')) sendQQPrivate(owner.slice(3), text);
   const u = getScheduleUser(owner);
   if (u?.push_kind === 'bark') sendBark('🍅 番茄钟', text, u.push_key);

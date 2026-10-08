@@ -3,6 +3,7 @@ import { getWeatherUser, upsertWeatherUser, setWeatherReminded, listScheduleUser
 import { partsOf } from './time.js';
 import { sendBark, sendPushDeer } from './notify.js';
 import { sendQQPrivate } from './onebot.js';
+import { sendWebPush } from './push.js';
 import { getScheduleUser } from './db.js';
 
 const GEO_URL = 'https://geocoding-api.open-meteo.com/v1/search';
@@ -107,8 +108,9 @@ export function formatWeather(data, { dateParts } = {}) {
   return lines.join('\n');
 }
 
-/** 通知某人(QQ 私聊 + 已绑定的手机推送) */
+/** 通知某人(QQ 私聊 + Web Push + 已绑定的手机推送) */
 function notify(owner, text) {
+  sendWebPush(owner, '🌤 天气', text);
   if (owner.startsWith('qq:')) sendQQPrivate(owner.slice(3), text);
   const u = getScheduleUser(owner);
   if (u?.push_kind === 'bark') sendBark('🌤 天气', text, u.push_key);
