@@ -20,57 +20,110 @@ const DAY_MAP = {
 
 /* ================= 规则解析 ================= */
 
-/** 解析一行课程文本,失败返回 null */
-function parseLine(line) {
-  const text = String(line).trim();
-  if (!text) return null;
-  const dayM = text.match(/(?:周|星期|礼拜)\s*([一二三四五六日天0-7])/);
-  if (!dayM) return null;
-  const timeM = text.match(/(\d{1,2})[:：](\d{2})\s*[-~～—至到]\s*(\d{1,2})[:：](\d{2})/);
-  if (!timeM) return null;
-  const startMin = Number(timeM[1]) * 60 + Number(timeM[2]);
-  const endMin = Number(timeM[3]) * 60 + Number(timeM[4]);
-  if (startMin >= endMin || endMin > 24 * 60) return null;
-
-  let tail = text.replace(dayM[0], ' ').replace(timeM[0], ' ');
-
-  let weekStart = null;
-  let weekEnd = null;
-  let parity = '';
-  const wrM = tail.match(/(?:第\s*)?(\d{1,2})\s*[-~～—至到]\s*(\d{1,2})\s*周/);
-  if (wrM) {
-    weekStart = Number(wrM[1]);
-    weekEnd = Number(wrM[2]);
-    tail = tail.replace(wrM[0], ' ');
+/** 解析一段课程文本(某个时间之后、下一个时间/星期之前),支持一行多节课 */
+function parseCourseSegment(seg, day) {
+  const s = String(seg).trim();
+  if (!s) return null;
+  // 周次:1-8周 / 17周 / 3-8周,10-18周 等
+  const tokens = [];
+  for (const m of s.matchAll(/(\d{1,2})\s*[-~～—至到]\s*(\d{1,2})\s*周/g)) tokens.push([Number(m[1]), Number(m[2])]);
+  for (const m of s.matchAll(/(\d{1,2})\s*周/g)) {
+    const n = Number(m[1]);
+    const before = s.slice(Math.max(0, m.index - 3), m.index);
+    if (!/\d\s*[-~～—至到]\s*$/.test(before)) tokens.push([n, n]);
   }
-  const pM = tail.match(/(单周|双周)/);
-  if (pM) {
-    parity = pM[1] === '单周' ? 'odd' : 'even';
-    tail = tail.replace(pM[0], ' ');
-  }
+  const pM = s.match(/单周|双周|[(（]\s*([单双])\s*[)）]/);
+  const parity = pM ? (/单/.test(pM[0]) ? 'odd' : 'even') : '';
+
+  let name = s;
   let location = '';
-  const locM = tail.match(/[@＠]\s*(\S+)/);
-  if (locM) {
-    location = locM[1];
-    tail = tail.replace(locM[0], ' ');
+  const atIdx = s.search(/[@＠]/);
+  if (atIdx >= 0) {
+    name = s.slice(0, atIdx);
+    location = s
+      .slice(atIdx + 1)
+      .replace(/\(?\s*\d{1,2}(?:\s*[-~～—至到]\s*\d{1,2})?\s*周\)?/g, ' ')
+      .replace(/\d{1,2}\s*周/g, ' ')
+      .replace(/[单双]周/g, ' ')
+      .replace(/[(（]\s*[单双]\s*[)）]/g, ' ')
+      .replace(/[,，、;:：()（）]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
   }
-  const name = tail
+  name = name
+    .replace(/\(?\s*\d{1,2}(?:\s*[-~～—至到]\s*\d{1,2})?\s*周\)?/g, ' ')
+    .replace(/\d{1,2}\s*周/g, ' ')
+    .replace(/[单双]周/g, ' ')
+    .replace(/[(（]\s*[单双]\s*[)）]/g, ' ')
     .replace(/[,，。.;;、:：()（）[\]【】]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-  if (!name) return null;
-  return { day: DAY_MAP[dayM[1]] ?? 1, startMin, endMin, name, location, weekStart, weekEnd, parity };
+  if (!name || name.length > 40) return null;
+  return { day, name, location, tokens, parity };
 }
 
-/** 解析整段课表文本,返回 { items, failed } */
+/** 解析整段课表文本,返回 { items, failed }。支持:一行多节课、星期带冒号、整段挤成一行 */
 export function parseScheduleText(text) {
-  const lines = String(text).split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+  const src = String(text || '');
   const items = [];
   const failed = [];
-  for (const l of lines) {
-    const it = parseLine(l);
-    if (it) items.push(it);
-    else failed.push(l);
+
+  // 找到所有星期标记(周一 / 星期一 / 周一: …),按其切段
+  const dayRe = /(?:周|星期|礼拜)\s*([一二三四五六日天0-7])\s*[:：]?/g;
+  const marks = [];
+  let dm;
+  while ((dm = dayRe.exec(src))) marks.push({ idx: dm.index, end: dm.index + dm[0].length, day: DAY_MAP[dm[1]] ?? 1 });
+
+  if (!marks.length) {
+    // 没有星期标记:按行记录失败(提示用户看格式)
+    for (const l of src.split(/\r?\n/).map((x) => x.trim()).filter(Boolean)) failed.push(l);
+    return { items, failed };
+  }
+
+  const timeRe = /(\d{1,2})[:：](\d{2})\s*[-~～—至到]\s*(\d{1,2})[:：](\d{2})/g;
+  const segments = [];
+  for (let i = 0; i < marks.length; i++) {
+    const from = marks[i].end;
+    const to = i + 1 < marks.length ? marks[i + 1].idx : src.length;
+    segments.push({ day: marks[i].day, text: src.slice(from, to) });
+  }
+
+  for (const seg of segments) {
+    const times = [];
+    timeRe.lastIndex = 0;
+    let tm;
+    while ((tm = timeRe.exec(seg.text))) {
+      times.push({
+        idx: tm.index,
+        end: tm.index + tm[0].length,
+        startMin: Number(tm[1]) * 60 + Number(tm[2]),
+        endMin: Number(tm[3]) * 60 + Number(tm[4]),
+      });
+    }
+    if (!times.length) {
+      if (seg.text.trim()) failed.push(seg.text.slice(0, 24));
+      continue;
+    }
+    for (let i = 0; i < times.length; i++) {
+      const t = times[i];
+      if (t.startMin >= t.endMin || t.endMin > 24 * 60) continue;
+      const courseSeg = seg.text.slice(t.end, i + 1 < times.length ? times[i + 1].idx : seg.text.length);
+      const c = parseCourseSegment(courseSeg, seg.day);
+      if (!c) { failed.push(courseSeg.slice(0, 24)); continue; }
+      if (c.tokens.length) {
+        if (c.parity) {
+          const ws = Math.min(...c.tokens.map((x) => x[0]));
+          const we = Math.max(...c.tokens.map((x) => x[1]));
+          items.push({ day: seg.day, startMin: t.startMin, endMin: t.endMin, name: c.name, location: c.location, weekStart: ws, weekEnd: we, parity: c.parity });
+        } else {
+          for (const [a, b] of c.tokens) {
+            items.push({ day: seg.day, startMin: t.startMin, endMin: t.endMin, name: c.name, location: c.location, weekStart: a, weekEnd: b, parity: '' });
+          }
+        }
+      } else {
+        items.push({ day: seg.day, startMin: t.startMin, endMin: t.endMin, name: c.name, location: c.location, weekStart: null, weekEnd: null, parity: '' });
+      }
+    }
   }
   return { items, failed };
 }
