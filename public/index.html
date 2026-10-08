@@ -1163,7 +1163,7 @@ async function openCtrl(id, title, ctx) {
     const tI = mkInput('公告标题', '');
     const cT = el('textarea');
     cT.className = 'search';
-    cT.placeholder = '公告内容(将推送给全体学生的 QQ/手机推送/App)';
+    cT.placeholder = '公告内容(显示在每位同学的 App 首页公告区;已绑手机推送的会收到弹窗,不发 QQ)';
     cT.rows = 3;
     cT.style.width = '100%';
     cT.style.resize = 'vertical';
