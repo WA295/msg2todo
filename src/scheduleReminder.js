@@ -33,10 +33,11 @@ function check() {
     if (!Array.isArray(slots) || !slots.length) slots = [u.notify_time || config.schedule.notifyTime];
     slots = slots.filter((s) => /^\d{1,2}:\d{2}$/.test(s)).sort();
 
-    // 去重:last_remind 格式 "YYYY-MM-DD HH:MM";老数据只有日期则视为今天已发过
+    // 去重:last_remind 格式 "YYYY-MM-DD HH:MM"
+    // 注意:老数据只存了日期(长度 < 16),无法判断已发时段 → 放行,避免永久卡住当天提醒
     let lastSlot = '';
-    if (u.last_remind && u.last_remind.startsWith(today)) {
-      lastSlot = u.last_remind.length >= 16 ? u.last_remind.slice(11, 16) : '99:99';
+    if (u.last_remind && u.last_remind.startsWith(today) && u.last_remind.length >= 16) {
+      lastSlot = u.last_remind.slice(11, 16);
     }
 
     for (const slot of slots) {
