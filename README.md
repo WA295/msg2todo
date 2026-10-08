@@ -43,6 +43,7 @@
 - [使用示例](#使用示例)
 - [打包与分发](#打包与分发)
 - [手机 App(安卓安装包)](#手机-app安卓安装包)
+- [App 原生推送(Web Push,不依赖 QQ)](#app-原生推送web-push不依赖-qq)
 - [更新升级](#更新升级)
 - [本地测试](#本地测试无需真实-qq)
 - [常见问题](#常见问题)
@@ -308,6 +309,8 @@ node -e "const fs=require('fs');const p=process.env.HOME+'/Applications/QQ-napca
 | `CLASS_REMIND_MINUTES` | `10` | 上课前提前提醒(分钟) |
 | `COUNTDOWN_NOTIFY_TIME` | `08:00` | 倒计时每日推送时间 |
 | `WEEKLY_REVIEW_TIME` | `22:00` | 每周回顾推送时间(周日) |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | 空 | Web Push 密钥(生成见「App 原生推送」章节);配置后网页/App 可开启原生推送 |
+| `VAPID_SUBJECT` | mailto | 推送服务联系方式 |
 | `DB_PATH` | `data/todos.db` | SQLite 路径 |
 
 ## 使用示例
@@ -337,6 +340,16 @@ SERVER=http://1.2.3.4:8080 TOKEN=xxx npm run build:apk   # 指定云端地址+�
 ```
 
 产物 `dist/msg2todo-安卓.apk`,装完打开即用(全屏无浏览器栏)。见 [云服务器部署](docs/云服务器部署.md) ⭐ 部署后手机在任何网络都能用。
+
+## App 原生推送(Web Push,不依赖 QQ)
+
+所有提醒可以**直达手机通知中心**,彻底摆脱对 QQ 的依赖(QQ 机器人被风控也不影响收提醒):
+
+1. 配置域名 + HTTPS(见 [云服务器部署](docs/云服务器部署.md),Caddy 自动证书)
+2. `.env` 配置 VAPID 密钥(生成:`node -e "console.log(require('web-push').generateVAPIDKeys())"`)
+3. 打开网页/App → 总览页点「**🔔 开启推送**」→ 允许通知
+
+支持:iPhone(iOS 16.4+,从主屏幕打开)、安卓、电脑浏览器。开启后,课表/天气/倒计时/待办/番茄/上课/睡觉提醒全部原生推送;QQ 私聊与 Bark/PushDeer 仍作为并行通道。
 
 ## 更新升级
 
