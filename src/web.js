@@ -13,6 +13,7 @@ import { buildDayText } from './schedule.js';
 import { getWeather, formatWeather } from './weather.js';
 import { parseWorkbook } from './excelImport.js';
 import { events, liveStatus } from './events.js';
+import { addPushSubscription, listPushSubscriptions, deletePushSubscription } from './db.js';
 
 const sseClients = new Set();
 let qrSvg = null;
@@ -150,6 +151,28 @@ export function startWeb() {
   // 运行状态快照
   app.get('/api/status', (req, res) => {
     res.json({ ...liveStatus, llm: config.llm.enabled, wechatEnabled: config.wechat.enabled });
+  });
+
+  // ── Web Push(App 原生推送)──
+  // VAPID 公钥(前端订阅用)
+  app.get('/api/push/vapid', (req, res) => {
+    res.json({ publicKey: config.vapid.publicKey, enabled: Boolean(config.vapid.publicKey && config.vapid.privateKey) });
+  });
+
+  // 订阅:保存当前用户的推送订阅
+  app.post('/api/push/subscribe', express.json(), (req, res) => {
+    const sub = req.body?.subscription;
+    if (!sub || !sub.endpoint || !sub.keys?.p256dh) return res.status(400).json({ error: '订阅数据无效' });
+    const owner = req.user.isAdmin ? 'admin' : req.user.owner;
+    addPushSubscription(owner, sub, req.headers['user-agent'] || '');
+    res.json({ ok: true, count: listPushSubscriptions(owner).length });
+  });
+
+  // 取消订阅
+  app.post('/api/push/unsubscribe', express.json(), (req, res) => {
+    const owner = req.user.isAdmin ? 'admin' : req.user.owner;
+    deletePushSubscription(owner, String(req.body?.endpoint || ''));
+    res.json({ ok: true });
   });
 
   // 总览:看板首页聚合数据(天气/明日课程/倒计时/番茄/待办/自动化时间表)

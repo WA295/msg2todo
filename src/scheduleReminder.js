@@ -4,6 +4,7 @@ import { partsOf, weekOf, zonedDate } from './time.js';
 import { buildDayText, WD_NAMES } from './schedule.js';
 import { sendBark, sendPushDeer } from './notify.js';
 import { sendQQPrivate } from './onebot.js';
+import { sendWebPush } from './push.js';
 
 let timer = null;
 
@@ -46,6 +47,7 @@ function check() {
       const sent = sendQQPrivate(userId, body);
       if (!sent) console.warn(`[课表] QQ 未连接,无法给「${u.name || u.owner}」发送提醒`);
     }
+    sendWebPush(u.owner, head, body);
     if (u.push_kind === 'bark') sendBark(head, body, u.push_key);
     else if (u.push_kind === 'pushdeer') sendPushDeer(head, body, u.push_key);
 
