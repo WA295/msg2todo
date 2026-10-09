@@ -2,6 +2,6 @@
 window.APP_CONFIG = {
   server: 'http://182.92.163.6:8080',
   authToken: '',
-  versionCode: 3,
-  versionName: '1.2',
+  versionCode: 4,
+  versionName: '1.3',
 };
