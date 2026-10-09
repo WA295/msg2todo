@@ -1,14 +1,18 @@
 #!/usr/bin/env bash
 # 一键发布 iTodo 公告(默认发到云端)
-# 用法: bash scripts/announce.sh "标题" "内容"
-# 可用环境变量覆盖: SERVER(默认 http://182.92.163.6:8080)、ADMIN_TOKEN(默认 ***已移除***)
+# 用法: ADMIN_TOKEN=<管理员令牌> bash scripts/announce.sh "标题" "内容"
+# 环境变量:SERVER(默认 http://182.92.163.6:8080)、ADMIN_TOKEN(必填,勿硬编码到脚本/仓库)
 set -e
 SERVER="${SERVER:-http://182.92.163.6:8080}"
-TOKEN="${ADMIN_TOKEN:-***已移除***}"
+TOKEN="${ADMIN_TOKEN:-}"
 TITLE="$1"
 CONTENT="$2"
 if [ -z "$TITLE" ] || [ -z "$CONTENT" ]; then
-  echo "用法: bash scripts/announce.sh \"标题\" \"内容\""
+  echo "用法: ADMIN_TOKEN=<管理员令牌> bash scripts/announce.sh \"标题\" \"内容\""
+  exit 1
+fi
+if [ -z "$TOKEN" ]; then
+  echo "缺少 ADMIN_TOKEN 环境变量(管理员令牌,在 .env 里,不写死在脚本中)"
   exit 1
 fi
 node -e '
