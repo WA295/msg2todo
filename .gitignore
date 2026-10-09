@@ -11,3 +11,6 @@ public/*.apk
 # Android release 签名(务必自行备份,勿提交)
 android/itodo-release.jks
 android/keystore.properties
+
+# 运维手册(含服务器密码等机密,勿提交)
+docs/项目运维手册.md
