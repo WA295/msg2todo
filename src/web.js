@@ -678,31 +678,36 @@ export function startWeb() {
   });
 
   // 管理员:立即给所有有课表的学生发送「明天课程」通知(QQ + 手机推送全通道)
-  app.post('/api/admin/notify-schedule-now', (req, res) => {
+  app.post('/api/admin/notify-schedule-now', express.json(), (req, res) => {
     if (!req.user.isAdmin) return res.status(403).json({ error: '仅管理员可操作' });
+    const when = req.body?.when === 'today' ? 'today' : 'tomorrow';
+    const pushOnly = req.body?.pushOnly === true; // true = 只发弹窗,不发 QQ
     const nowP = partsOf(new Date());
     const today = partsToStr(nowP);
-    const tomP = partsOf(new Date(zonedDate(nowP.y, nowP.mo, nowP.d, 0, 0).getTime() + 86400000));
+    const target = when === 'today'
+      ? nowP
+      : partsOf(new Date(zonedDate(nowP.y, nowP.mo, nowP.d, 0, 0).getTime() + 86400000));
     const nowHM = `${String(nowP.h).padStart(2, '0')}:${String(nowP.mi).padStart(2, '0')}`;
-    let sent = 0;
+    const label = when === 'today' ? '今天' : '明天';
+    let sent = 0, qqSent = 0, popSent = 0, webpush = 0;
     for (const u of listScheduleUsers()) {
       const items = listScheduleItems(u.owner);
       if (!items.length) continue;
       const sem = u.semester_start || config.schedule.semesterStart;
-      const week = sem ? weekOf(tomP, sem) : null;
-      const { text, hint } = buildDayText(items, tomP, sem);
-      const head = `📚 明天(${tomP.mo}月${tomP.d}日 ${WD_NAMES[tomP.wd]})${week ? ` · 第${week}周` : ''}的课`;
+      const week = sem ? weekOf(target, sem) : null;
+      const { text, hint } = buildDayText(items, target, sem);
+      const head = `📚 ${label}(${target.mo}月${target.d}日 ${WD_NAMES[target.wd]})${week ? ` · 第${week}周` : ''}的课`;
       const body = `${head}:\n${text}${hint ? `\n⚠️ ${hint}` : ''}`;
       const userId = u.owner.startsWith('qq:') ? u.owner.slice(3) : '';
-      if (userId && !sendQQPrivate(userId, body)) console.warn(`[课表] QQ 未连接,无法给「${u.name || u.owner}」发送`);
-      sendWebPush(u.owner, head, body);
-      if (u.push_kind === 'bark') sendBark(head, body, u.push_key);
-      else if (u.push_kind === 'pushdeer') sendPushDeer(head, body, u.push_key);
+      if (!pushOnly && userId && sendQQPrivate(userId, body)) qqSent++;
+      if (u.push_kind === 'bark') { sendBark(head, body, u.push_key); popSent++; }
+      else if (u.push_kind === 'pushdeer') { sendPushDeer(head, body, u.push_key); popSent++; }
+      if (listPushSubscriptions(u.owner).length) { sendWebPush(u.owner, head, body); webpush++; }
       db.prepare('UPDATE schedule_users SET last_remind = ? WHERE owner = ?').run(`${today} ${nowHM}`, u.owner);
-      console.log(`[课表] 手动推送「明天课程」给 ${u.owner}(${u.name || ''})`);
+      console.log(`[课表] 推送「${label}课程」给 ${u.owner}(${u.name || ''})${pushOnly ? ' [仅弹窗]' : ''}`);
       sent++;
     }
-    res.json({ ok: true, sent, time: nowHM });
+    res.json({ ok: true, when, pushOnly, sent, qq: qqSent, pop: popSent, webpush, time: nowHM });
   });
 
   // 总览:看板首页聚合数据(天气/明日课程/倒计时/番茄/待办/自动化时间表)
