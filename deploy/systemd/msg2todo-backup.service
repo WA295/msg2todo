@@ -1,0 +1,20 @@
+[Unit]
+Description=iTodo 数据库备份(VACUUM INTO 快照 + 完整性校验 + 失败告警)
+Documentation=https://github.com/Miraculy/msg2todo
+# 主服务需要在线(备份脚本会用 node:sqlite 打开数据库做一致性快照)
+After=msg2todo.service
+Wants=msg2todo.service
+
+[Service]
+Type=oneshot
+User=itodo
+Group=itodo
+WorkingDirectory=/opt/msg2todo
+EnvironmentFile=-/opt/msg2todo/.env
+Environment=APP_DIR=/opt/msg2todo
+Environment=BACKUP_KEEP=14
+ExecStart=/opt/msg2todo/scripts/backup-db.sh
+# 备份失败必须留下痕迹,便于监控/告警捕获
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=msg2todo-backup

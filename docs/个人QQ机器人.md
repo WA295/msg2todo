@@ -17,9 +17,13 @@
 ## 连接参数(所有方案通用)
 
 ```
-服务器地址: ws://182.92.163.6:3001
-接入令牌:   itodo3001
+服务器地址: ws://<服务器地址>:3001        # 建议改用 wss://<你的域名>/onebot
+接入令牌:   <见服务器 .env 的 ONE_BOT_ACCESS_TOKEN>
 ```
+
+> ⚠️ **不要把令牌写进仓库或公开文档**(本项目此前把生产 IP + 令牌明文写在文档和前端帮助页里,
+> 已随公开 GitHub 仓库泄露)。正确做法:令牌由管理员通过私密渠道(群公告/私聊)告知,
+> 并在需要时轮换服务器 `.env` 里的 `ONE_BOT_ACCESS_TOKEN`,同步更新 NapCat 的 `onebot11_<QQ>.json`。
 
 ## Windows + LLOneBot(推荐给学生)
 
@@ -27,14 +31,14 @@
 2. 下载 LLOneBot:https://github.com/LLOneBot/LLOneBot/releases(国内网络用 ghfast.top 前缀)
 3. QQ 设置里加载 LLOneBot 插件(按官方说明操作)
 4. 打开 LLOneBot 设置 → 「反向 WebSocket」:
-   - 地址填 `ws://182.92.163.6:3001`
-   - 令牌填 `itodo3001`
+   - 地址填上表里的服务器地址
+   - 令牌填管理员给你的接入令牌
 5. 保存 → 连接成功后,iTodo 会识别你的 QQ 号
 
 ## Linux + NapCat
 
 见 README「QQ 接入(OneBot v11)」,把反向 WS 地址换成:
-`ws://182.92.163.6:3001?access_token=itodo3001`
+`wss://<你的域名>/onebot?access_token=<你的令牌>`
 
 ## 使用说明
 

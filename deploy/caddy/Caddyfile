@@ -1,0 +1,66 @@
+# iTodo Caddy 配置(自动 HTTPS + 反向代理)
+#
+# 用法:
+#   1. 把下面的 example.com 换成你的域名(域名必须已解析到本机公网 IP)
+#   2. cp deploy/caddy/Caddyfile /etc/caddy/Caddyfile && systemctl reload caddy
+#
+# 设计要点:
+#   - 主服务只监听 127.0.0.1:8080,公网不再直接暴露 8080(安全组只需 80/443)
+#   - /onebot 反代到 127.0.0.1:3001,给学生个人机器人提供 wss:// 入口(令牌仍必填)
+#   - /app.apk 由 Caddy 直接发文件,不经过 Node 进程
+#   - 压缩 + 合理缓存,减少移动端流量
+
+{
+	email admin@example.com
+	# 生产环境不要开 debug
+	log {
+		output file /var/log/caddy/access.log {
+			roll_size 20mb
+			roll_keep 5
+		}
+	}
+}
+
+# ── 主域名 ──
+example.com, www.example.com {
+	encode zstd gzip
+
+	# APK 下载:交给 Caddy 直接发,并在更新时绕开缓存
+	handle /app.apk {
+		root * /opt/msg2todo/public
+		header Cache-Control "no-cache"
+		file_server
+	}
+
+	# 版本清单:必须实时,App 自动更新依赖它
+	handle /api/app/update {
+		reverse_proxy 127.0.0.1:8080
+		header Cache-Control "no-store"
+	}
+
+	# 学生个人机器人接入:OneBot 反向 WS(必须用 wss,明文令牌不可接受)
+	handle /onebot* {
+		reverse_proxy 127.0.0.1:3001
+	}
+
+	# 其余全部交给主服务(API + SSE + 单页应用)
+	handle {
+		reverse_proxy 127.0.0.1:8080 {
+			# SSE 长连接:关闭缓冲,否则事件会被攒住不下发
+			flush_interval -1
+			transport http {
+				read_timeout 0
+				write_timeout 0
+			}
+		}
+	}
+
+	# 基础安全响应头
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+}

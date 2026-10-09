@@ -11,6 +11,18 @@ public/*.apk
 # Android release 签名(务必自行备份,勿提交)
 android/itodo-release.jks
 android/keystore.properties
+android/*.jks
+android/*.keystore
 
-# 运维手册(含服务器密码等机密,勿提交)
+# ── 含机密的本地文档(务必本地保留、勿提交)──
+# 注意:此前只屏蔽了「运维手册」,但真正写着服务器密码/令牌的是
+#      docs/项目总结.md 等被正常跟踪的文件 —— 换句话说屏蔽规则打偏了目标。
+# 约定:docs/ 下的普通文档一律不写密钥;确需记录凭证的文档用下面这些命名规则,
+#      它们全部不会进 Git。
 docs/项目运维手册.md
+docs/*运维手册*.md
+docs/*机密*.md
+docs/*更新版*.md
+docs/*部署方案*.md
+*.secrets
+secrets/

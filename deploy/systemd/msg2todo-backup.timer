@@ -1,0 +1,15 @@
+[Unit]
+Description=每日 03:00 备份 iTodo 数据库
+Documentation=https://github.com/Miraculy/msg2todo
+
+[Timer]
+# 每天 03:00(系统时区;服务器 TZ 已设为 Asia/Shanghai)
+OnCalendar=*-*-* 03:00:00
+# 机器关机/休眠错过本次时,启动后补跑一次
+Persistent=true
+# 加一点随机抖动,避免与其他定时任务同时抢 IO
+RandomizedDelaySec=5m
+Unit=msg2todo-backup.service
+
+[Install]
+WantedBy=timers.target
