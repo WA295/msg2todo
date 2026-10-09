@@ -1,0 +1,34 @@
+[Unit]
+Description=iTodo 校园生活服务平台(主服务)
+Documentation=https://github.com/Miraculy/msg2todo
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# 以专用低权限用户运行(部署脚本负责创建 itodo 用户与目录属主)
+User=itodo
+Group=itodo
+WorkingDirectory=/opt/msg2todo
+# 密钥全部来自 .env,不写入单元文件
+EnvironmentFile=/opt/msg2todo/.env
+# --dns-result-order=ipv4first:云服务器常无 IPv6,强制 IPv4 避免 fetch 超时
+ExecStart=/usr/local/bin/node --dns-result-order=ipv4first /opt/msg2todo/src/index.js
+Restart=always
+RestartSec=10
+
+# ── 加固 ──
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/msg2todo/data /opt/msg2todo/backups
+# 端口 <1024 需要特权,这里都 >=3001,无需 AmbientCapabilities
+
+# ── 日志 ──
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=msg2todo
+
+[Install]
+WantedBy=multi-user.target

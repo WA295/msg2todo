@@ -1,0 +1,17 @@
+[Unit]
+Description=NapCatQQ OneBot v11 桥(公共 QQ 机器人)
+Documentation=https://github.com/NapNeko/NapCatQQ
+After=network-online.target msg2todo.service
+Wants=network-online.target msg2todo.service
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/QQ-napcat
+Environment=HOME=/root
+# 无头服务器:用 xvfb 提供虚拟显示
+ExecStart=/usr/bin/xvfb-run -a /opt/QQ-napcat/qq --no-sandbox --disable-gpu -q 2127511079
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

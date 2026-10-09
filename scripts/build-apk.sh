@@ -13,10 +13,16 @@ fi
 
 echo "═══ 打包安卓 APK ═══"
 
-# 内置服务器配置 + 版本号(每次打包都重写;SERVER/TOKEN 可用环境变量覆盖)
-S="${SERVER:-$(grep -oP "(?<=server: ')[^']+" public/app-config.js 2>/dev/null)}"
-S="${S:-http://182.92.163.6:8080}"
-T="${TOKEN:-$(grep -oP "(?<=authToken: ')[^']*" public/app-config.js 2>/dev/null)}"
+# 内置服务器配置 + 版本号(每次打包都重写;SERVER/TOKEN 用环境变量传入)
+# 不再提供内置的生产 IP 兜底:服务器地址属于部署信息,不应写死在公开仓库里。
+S="${SERVER:-$(grep -oP "(?<=server: ')[^']+" public/app-config.js 2>/dev/null || true)}"
+T="${TOKEN:-$(grep -oP "(?<=authToken: ')[^']*" public/app-config.js 2>/dev/null || true)}"
+if [ -z "$S" ]; then
+  echo "❌ 未指定服务器地址。请显式传入,例如:"
+  echo "     SERVER=https://你的域名 bash scripts/build-apk.sh"
+  echo "   (仓库里不再内置默认地址,避免把生产环境写进公开代码)"
+  exit 1
+fi
 VC=$(grep -E '^VERSION_CODE=' android/gradle.properties | cut -d= -f2 | tr -d ' ')
 VN=$(grep -E '^VERSION_NAME=' android/gradle.properties | cut -d= -f2 | tr -d ' ')
 VC=${VC:-1}; VN=${VN:-1.0}

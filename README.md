@@ -339,7 +339,7 @@ node -e "const fs=require('fs');const p=process.env.HOME+'/Applications/QQ-napca
 
 ```bash
 npm run dist:linux                # Linux AppImage
-npm run dist:win                  # Windows 安装包(需 wine)
+npx electron-builder --win dir    # Windows 免安装目录(再 zip;本仓库没有 dist:win 脚本)
 bash scripts/install-desktop.sh   # Linux 免 FUSE 安装到应用菜单
 ```
 
